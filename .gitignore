@@ -1,0 +1,55 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.env
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# --- VSCode / PyCharm ---
+.vscode/
+.idea/
+
+# --- SQLite DB ---
+*.db
+*.sqlite3
+*.sqlite
+*.db-journal
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Coverage / Testing ---
+.coverage
+coverage.xml
+htmlcov/
+pytest_cache/
+.tox/
+
+# --- Migrations (if used) ---
+alembic/versions/
+*.egg-info/
+.eggs/
+
+# --- Build artifacts ---
+build/
+dist/
+*.egg
+*.whl
+
+# --- OS-specific ---
+.DS_Store
+Thumbs.db
+
+# --- My personal overrides ---
+data/
+scripts/__pycache__/
+
+
+*.session
