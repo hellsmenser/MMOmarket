@@ -25,9 +25,11 @@ class PriceUpdate(BaseModel):
     source: Optional[str] = None
 
 
-class PriceOut(PriceBase):
-    id: int
-    timestamp: datetime
+class PriceHistory(BaseModel):
+    adena: Optional[int] = Field(..., example=3600000)
+    coin: Optional[int] = Field(..., example=1000)
+    coin_price: Optional[int] = Field(None, example=1000)
+    timestamp: datetime = Field(..., example="2023-10-01T12:00:00Z")
 
     class Config:
         from_attributes = True

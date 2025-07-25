@@ -22,7 +22,7 @@ ENV/
 *.db-journal
 
 # --- Logs ---
-logs/
+logs/*
 *.log
 
 # --- Coverage / Testing ---

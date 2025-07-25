@@ -1,9 +1,14 @@
+import logging
+from collections import deque
 from typing import Optional
 
+from app.db.schemas.price import PriceCreate
+
+
 def classify_from_history(
-    price,
-    buffer: list[tuple[int, int]],
-    tolerance: float = 0.35
+        price: PriceCreate,
+        buffer: dict[int, deque[int]],
+        tolerance: float = 0.35
 ) -> Optional[str]:
     if not buffer:
         return None
@@ -23,16 +28,11 @@ def classify_from_history(
     price_value = price.price
     bands = {}
 
-    per_level_prices = {level: [] for level in levels}
-    for mod, val in buffer:
-        if mod in per_level_prices:
-            per_level_prices[mod].append(val)
-
-    for level, vals in per_level_prices.items():
+    for level in levels:
+        vals = list(buffer.get(level, []))
         if not vals:
             continue
-        else:
-            center = sum(vals) / len(vals)
+        center = sum(vals) / len(vals)
         delta = center * tolerance
         bands[level] = (center - delta, center + delta)
 
@@ -52,9 +52,18 @@ def classify_from_history(
         if high < price_value < low:
             return f"{sorted_levels[i]}-{sorted_levels[i + 1]}"
 
-    if price_value < min(b[0] for b in bands.values()):
-        return f"<{min(bands.keys())}"
-    if price_value > max(b[1] for b in bands.values()):
-        return f">{max(bands.keys())}"
+    min_level = min(bands.keys())
+    max_level = max(bands.keys())
+    min_band = min(b[0] for b in bands.values())
+    max_band = max(b[1] for b in bands.values())
+
+    if price.source == "private_trade" and item.category.name == "Доспехи":
+        if price_value < min_band or price_value > max_band:
+            return "Сет"
+
+    if price_value < min_band:
+        return str(min_level)
+    if price_value > max_band:
+        return str(max_level)
 
     return None

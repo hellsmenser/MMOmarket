@@ -1,7 +1,6 @@
 import logging
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
-from telethon.tl.custom.message import Message
 
 from app.config import get_tg_api_id, get_tg_api_hash, get_tg_session_name
 
@@ -33,3 +32,8 @@ async def start_client():
     except Exception as e:
         logger.exception(f"❌ Failed to start Telegram client: {e}")
         raise
+
+async def close_client():
+    if client.is_connected():
+        await client.disconnect()
+        logger.info("✅ Telegram client disconnected")

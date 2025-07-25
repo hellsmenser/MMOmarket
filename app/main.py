@@ -1,9 +1,10 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.db import init_db
 from app.core.logger import setup_logging
-from app.telegram.service import fetch_and_store_messages
+from app.services import controls
 
 setup_logging()
 app = FastAPI(
@@ -12,12 +13,21 @@ app = FastAPI(
     version="0.1.0"
 )
 scheduler = AsyncIOScheduler()
+origins = [
+    "*"
+]
 
 app.include_router(api_router)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 @app.on_event("startup")
 async def on_startup():
     await init_db()
-    await fetch_and_store_messages()
-    scheduler.add_job(fetch_and_store_messages, "interval", hours=1)
+    scheduler.add_job(controls.collect_prices, "interval", hours=2)
     scheduler.start()

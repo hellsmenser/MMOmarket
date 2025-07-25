@@ -11,7 +11,6 @@ class Item(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     modifications: Mapped[str | None] = mapped_column(String, nullable=True)
-    image: Mapped[str] = mapped_column(String, default="PLACEHOLDER")
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
     tolerance: Mapped[float | None] = mapped_column(default=0.1)
 

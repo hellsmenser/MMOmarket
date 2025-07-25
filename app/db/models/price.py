@@ -13,8 +13,8 @@ class PriceHistory(Base):
 
     price: Mapped[int] = mapped_column(BigInteger)
     enchant_level: Mapped[int | None] = mapped_column(Text, nullable=True)
-    currency: Mapped[str] = mapped_column(Text)
-    source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    currency: Mapped[str] = mapped_column(Text, default="adena")
+    source: Mapped[str | None] = mapped_column(Text, nullable=True, default="auction_house")
 
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

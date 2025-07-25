@@ -1,36 +1,75 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from app.db.crud import price as crud
-from app.db.schemas.price import PriceCreate
+from app.db.schemas.price import PriceCreate, PriceHistory
+from datetime import date, timedelta
+
 
 async def add_prices_batch(db: AsyncSession, prices: List[PriceCreate]):
     return await crud.add_prices_batch(db, prices)
 
-async def get_prices_by_item(
-    db: AsyncSession,
-    item_id: int,
-    limit: int = 100,
-    enchant_level: Optional[int] = None,
-    currency: Optional[str] = None,
-):
-    return await crud.get_prices_by_item(
-        db,
-        item_id=item_id,
-        limit=limit,
-        enchant_level=enchant_level,
-        currency=currency,
-    )
 
-async def get_latest_price(
+async def get_item_price_history(
     db: AsyncSession,
     item_id: int,
-    enchant_level: Optional[int] = None,
-    currency: Optional[str] = None,
+    period: int | Literal["all"],
+    modification: str = None,
+    aggregate: str = "avg"
 ):
-    return await crud.get_latest_price(
-        db,
-        item_id=item_id,
-        enchant_level=enchant_level,
-        currency=currency,
+    if period == "all":
+        period = 90
+    items = await crud.get_item_price_history(db, item_id, period, modification, aggregate)
+    if not items:
+        return None
+    result = []
+    for row in items:
+        ts = row["timestamp"]
+
+        if hasattr(ts, 'year') and not hasattr(ts, 'hour'):
+            from datetime import datetime, time
+            ts = datetime.combine(ts, time.min)
+
+        coin_price = None
+        coin_price_obj = await crud.get_coin_price_on_day(db, ts, aggregate)
+        if coin_price_obj:
+            coin_price = coin_price_obj[0].price if isinstance(coin_price_obj, list) else coin_price_obj
+
+        out = PriceHistory(
+            adena=row["adena"],
+            coin=row["coin"],
+            coin_price=coin_price,
+            timestamp=ts
+        )
+        result.append(out)
+    return result
+
+async def get_coin_price_on_day(
+    db: AsyncSession,
+    aggregate: str = "avg"
+) -> Optional[PriceHistory]:
+    coin = await crud.get_coin_price_on_day(db, date.today(), aggregate=aggregate)
+    if not coin:
+        coin = await crud.get_coin_price_on_day(db, date.today() - timedelta(days=1), "avg")
+    return PriceHistory(
+        adena=None,
+        coin=None,
+        coin_price=coin,
+        timestamp=date.today()
+    ) if coin else None
+
+
+async def get_coin_price(
+    db: AsyncSession,
+    to_date: Optional[str] = None,
+    aggregate: str = "avg"
+) -> PriceHistory:
+    price = await crud.get_coin_price(db, to_date, aggregate)
+    if not price:
+        return None
+    return PriceHistory(
+        adena=None,
+        coin=None,
+        coin_price=price,
+        timestamp=date.today()
     )

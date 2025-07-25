@@ -7,7 +7,7 @@ from app.db.schemas import category as schema
 
 async def get_all(session: AsyncSession) -> list[Category]:
     result = await session.execute(
-        select(Category).options(selectinload(Category.items))
+        select(Category)
     )
     return result.scalars().all()
 

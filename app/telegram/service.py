@@ -1,21 +1,23 @@
-from collections import deque
+from collections import deque, defaultdict
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.schemas.price import PriceCreate
 from app.telegram.classifier import classify_from_history
-from app.telegram.client import client, start_client
+from app.telegram.client import client, start_client, close_client
 from app.telegram.parser import parse_price_message
 from app.db.crud.item import get_item_by_name
 from app.db.crud.price import add_prices_batch, get_latest_prices_for_classification
 from app.core.db import get_async_session
+from app.services.prices import get_coin_price
 import logging
 
 logger = logging.getLogger(__name__)
 
 BOT_USERNAME = "forgame_bot"
-BATCH_SIZE = 10
+BATCH_SIZE = 100
+
 
 async def fetch_and_store_messages():
     await start_client()
@@ -24,6 +26,7 @@ async def fetch_and_store_messages():
     if unread_count == 0:
         logger.info("📭 No new unread messages")
         return
+    logger.info(f"📬 Fetching {unread_count} unread messages from {BOT_USERNAME}")
 
     all_messages = []
     offset_id = 0
@@ -38,13 +41,6 @@ async def fetch_and_store_messages():
         all_messages.extend(batch)
         fetched += len(batch)
         offset_id = min(msg.id for msg in batch)
-
-    new_unread_count = await get_undead_count()
-    if new_unread_count > 0 and new_unread_count != unread_count:
-        offset_id = min(msg.id for msg in all_messages)
-        batch = await client.get_messages(BOT_USERNAME, limit=new_unread_count, offset_id=offset_id)
-        if batch:
-            all_messages.extend(batch)
 
     logger.info(f"📬 Unread messages: {len(all_messages)}")
 
@@ -89,6 +85,8 @@ async def fetch_and_store_messages():
             await client.send_read_acknowledge(entity, max_id=last_msg_id)
 
         break
+    await close_client()
+
 
 async def get_undead_count():
     dialogs = await client.get_dialogs()
@@ -99,8 +97,9 @@ async def get_undead_count():
             break
     return unread_count
 
+
 async def classify_prices(session: AsyncSession, prices: list[PriceCreate], buffer_size: int = 10):
-    buffer: deque[tuple[int, int]] = deque(maxlen=buffer_size)
+    buffer: dict[int, deque[int]] = {}
     current_item_id: Optional[int] = None
     current_currency: Optional[str] = None
 
@@ -115,15 +114,58 @@ async def classify_prices(session: AsyncSession, prices: list[PriceCreate], buff
             price.enchant_level = str(mods[0])
             continue
 
-        if (price.item.id, price.currency) != (current_item_id, current_currency):
-            history = await get_latest_prices_for_classification(session, price.item.id, price.currency, mods, buffer_size)
-            buffer = deque(history, maxlen=buffer_size)
-            current_item_id = price.item.id
-            current_currency = price.currency
+        if price.source == "private_trade" and item.category.name == "Доспехи":
+            continue
 
-        # Классифицируем
-        mod_guess = classify_from_history(price, list(buffer), tolerance=item.tolerance)
-        price.enchant_level = str(mod_guess)
+        use_coin_buffer = True
+        if price.currency == "coin":
+            if (price.item.id, price.currency) != (current_item_id, current_currency):
+                history = await get_latest_prices_for_classification(session, price.item.id, price.currency, mods,
+                                                                     buffer_size)
+                buffer = build_buffer(history, buffer_size)
+                current_item_id = price.item.id
+                current_currency = price.currency
+            empty_mods = [mod for mod in mods if len(buffer[mod]) == 0]
+            if empty_mods:
+                coin_history = await get_coin_price(session, price.timestamp)
+                if coin_history:
+                    coin_to_adena = coin_history.coin_price
+                    adena_history = await get_latest_prices_for_classification(session, price.item.id, "adena", mods,
+                                                                               buffer_size)
+                    adena_buffer = build_buffer(adena_history, buffer_size)
+                    try:
+                        adena_price = price.price * coin_to_adena
+                        mod_guess = classify_from_history(
+                            PriceCreate(item=price.item, price=adena_price, currency="adena",
+                                        timestamp=price.timestamp),
+                            adena_buffer, tolerance=item.tolerance)
+                        price.enchant_level = str(mod_guess)
+                        buffer.setdefault(mod_guess, deque(maxlen=buffer_size)).append(price.price)
+                        use_coin_buffer = False
+                    except Exception as e:
+                        logger.error(f"Error classifying price for item {item.name} (coin->adena): {e}")
+                        mod_guess = None
+                        price.enchant_level = str(mod_guess)
+        if use_coin_buffer:
+            if (price.item.id, price.currency) != (current_item_id, current_currency):
+                history = await get_latest_prices_for_classification(session, price.item.id, price.currency, mods,
+                                                                     buffer_size)
+                buffer = build_buffer(history, buffer_size)
+                current_item_id = price.item.id
+                current_currency = price.currency
+            try:
+                mod_guess = classify_from_history(price, buffer, tolerance=item.tolerance)
+            except Exception as e:
+                logger.error(f"Error classifying price for item {item.name}: {e}")
+                logger.error(f"{item}")
+                mod_guess = None
+            price.enchant_level = str(mod_guess)
+            if isinstance(mod_guess, int):
+                buffer.setdefault(mod_guess, deque(maxlen=buffer_size)).append(price.price)
 
-        if isinstance(mod_guess, int):
-            buffer.append((mod_guess, price.price))
+
+def build_buffer(history, buffer_size=10):
+    buffer = defaultdict(lambda: deque(maxlen=buffer_size))
+    for mod, val in history:
+        buffer[mod].append(val)
+    return buffer

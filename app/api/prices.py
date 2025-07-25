@@ -1,50 +1,36 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Path, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from app.core.db import get_async_session
-from app.db.schemas.price import PriceCreate, PriceOut
+from app.db.schemas.price import PriceHistory
 from app.services import prices as service
 
 
 router = APIRouter()
 
 
-@router.post("/batch", response_model=List[PriceOut])
-async def add_prices(
-    prices: List[PriceCreate],
+@router.get("/coin", response_model=PriceHistory)
+async def get_coin_price(
+    db: AsyncSession = Depends(get_async_session),
+    aggregate: str = Query("avg", description="Aggregation method for coin price. avg/min")
+):
+    coin_price = await service.get_coin_price_on_day(db, aggregate)
+    if not coin_price:
+        raise HTTPException(status_code=404, detail="Coin price not found")
+
+    return coin_price
+
+@router.get("/{item_id}", response_model=List[PriceHistory])
+async def get_item_price_history(
+    item_id: int = Path(..., gt=0),
+    period: int | Literal["all"] = Query(default=30, description="Price history period in days"),
+    modification: str = Query(None, description="Modification to include in price history"),
+    aggregate: str = Query("avg", description="Aggregation method for price history. avg/min"),
     db: AsyncSession = Depends(get_async_session)
 ):
-    return await service.add_prices_batch(db, prices)
+    prices = await service.get_item_price_history(db, item_id, period, modification, aggregate)
+    if not prices:
+        raise HTTPException(status_code=404, detail="Item not found")
 
-
-@router.get("/", response_model=List[PriceOut])
-async def list_prices(
-    item_id: int = Query(..., description="ID предмета"),
-    limit: int = Query(100, le=1000),
-    enchant_level: Optional[int] = Query(None),
-    currency: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_async_session)
-):
-    return await service.get_prices_by_item(
-        db,
-        item_id=item_id,
-        limit=limit,
-        enchant_level=enchant_level,
-        currency=currency,
-    )
-
-
-@router.get("/latest", response_model=Optional[PriceOut])
-async def get_latest(
-    item_id: int = Query(...),
-    enchant_level: Optional[int] = Query(None),
-    currency: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_async_session)
-):
-    return await service.get_latest_price(
-        db,
-        item_id=item_id,
-        enchant_level=enchant_level,
-        currency=currency,
-    )
+    return prices
