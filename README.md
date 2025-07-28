@@ -94,9 +94,22 @@
 - Issues: [GitHub Issues](https://github.com/hellsmenser/MMOMarket-frontend/issues)
 - Frontend: [MMO Market frontend](https://github.com/hellsmenser/MMOmarket-frontend)
 
+
+## Disclaimer
+
+This is an independent, open-source fan project created for informational purposes only.  
+It is not affiliated with, endorsed by, or associated with NCSoft, its regional partners, or distributors.  
+All item names and terminology are used solely for reference and identification purposes.  
+All trademarks and game content remain the property of their respective owners.
+
+Это независимый проект с открытым исходным кодом, созданный исключительно в информационных целях.  
+Он не связан с NCSoft, ее региональными партнерами или дистрибьюторами, не одобряется ими и не ассоциируется с ними.  
+Все названия предметов и терминология используются исключительно в справочных и идентификационных целях.  
+Все торговые марки и игровой контент остаются собственностью их соответствующих владельцев.
+
+
 ---
 
 <div align="center">
   <sub>Made with ❤️ for Lineage 2 Community</sub>
 </div>
-

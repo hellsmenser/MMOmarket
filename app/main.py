@@ -10,11 +10,14 @@ setup_logging()
 app = FastAPI(
     title="L2 Market API",
     description="Userbot-based Telegram price tracker",
-    version="0.1.0"
+    version="0.1.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None
 )
 scheduler = AsyncIOScheduler()
 origins = [
-    "*"
+    "https://hellsmenser.github.io/"
 ]
 
 app.include_router(api_router)
