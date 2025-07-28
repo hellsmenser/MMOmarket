@@ -17,7 +17,8 @@ app = FastAPI(
 )
 scheduler = AsyncIOScheduler()
 origins = [
-    "https://hellsmenser.github.io/"
+    "https://hellsmenser.github.io",
+    "https://hellsmenser.github.io/MMOMarket-frontend",
 ]
 
 app.include_router(api_router)
