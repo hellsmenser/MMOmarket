@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta, date
 from typing import List, Optional
-from sqlalchemy import select, desc, Date, cast, func, or_, case, over, true, literal
+from sqlalchemy import select, desc, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.crud.utilits import get_quartiled_query, get_iqr_query
 from app.db.models.price import PriceHistory
 from app.db.schemas.price import PriceCreate
-
+import numpy as np
 
 async def add_prices_batch(
     db: AsyncSession, prices: List[PriceCreate]
@@ -93,17 +92,16 @@ async def get_item_price_history(
     modification: Optional[str] = None,
     aggregate: str = "avg"
 ) -> list:
+    from collections import defaultdict
+    from statistics import median
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=period)
-
     PH = PriceHistory
 
+    # Получаем все записи за период одним запросом
     base_query = select(
-        PH.id,
-        PH.item_id,
         PH.price,
         PH.currency,
-        PH.timestamp,
         func.date(PH.timestamp).label("day")
     ).where(
         PH.item_id == item_id,
@@ -112,122 +110,128 @@ async def get_item_price_history(
         PH.price > 10,
         or_(PH.enchant_level == None, PH.enchant_level != "Сет")
     )
-
     if modification is not None:
         base_query = base_query.where(PH.enchant_level == modification)
-
-    quartiled = get_quartiled_query(
-        base_query,
-        partition_by=[PH.item_id, PH.currency, func.date(PH.timestamp)],
-        order_by=PH.price
-    ).cte("quartiled")
-
-    iqr = get_iqr_query(
-        quartiled,
-        q_label="quartile",
-        price_col="price"
-    ).add_columns(
-        quartiled.c.day,
-        quartiled.c.currency
-    ).group_by(quartiled.c.day, quartiled.c.currency).cte("iqr")
-
-    filtered = (
-        select(
-            quartiled.c.day,
-            quartiled.c.currency,
-            quartiled.c.price
-        )
-        .join(iqr, (iqr.c.day == quartiled.c.day) & (iqr.c.currency == quartiled.c.currency))
-        .where(
-            quartiled.c.price.between(
-                iqr.c.q1 - 1.5 * (iqr.c.q3 - iqr.c.q1),
-                iqr.c.q3 + 1.5 * (iqr.c.q3 - iqr.c.q1),
-            )
-        )
-        .cte("filtered_prices")
-    )
-
-    stmt = select(
-        filtered.c.day,
-        filtered.c.currency,
-        (func.avg(filtered.c.price) if aggregate == "avg" else func.min(filtered.c.price)).label("price")
-    ).group_by(filtered.c.day, filtered.c.currency)
-    stmt = stmt.order_by(filtered.c.day, filtered.c.currency)
-
-    result = await db.execute(stmt)
+    base_query = base_query.order_by(func.date(PH.timestamp), PH.currency)
+    result = await db.execute(base_query)
     rows = result.mappings().all()
 
-    grouped = {}
+    # Группируем по дню и валюте
+    grouped = defaultdict(lambda: {"timestamp": None, "adena": None, "coin": None, "_prices": {"adena": [], "coin": []}})
     for row in rows:
         day = row["day"]
         currency = row["currency"]
-        price = int(row["price"]) if row["price"] is not None else None
-        if day not in grouped:
-            grouped[day] = {"timestamp": day, "adena": None, "coin": None}
-        grouped[day][currency] = price
+        price = int(row["price"])
+        grouped[day]["timestamp"] = day
+        grouped[day]["_prices"][currency].append(price)
 
-    return list(grouped.values())
+    # IQR-фильтрация и fallback в Python
+    def iqr_filter(prices):
+        if len(prices) < 4:
+            return prices  # fallback: не фильтруем, если мало значений
+        arr = np.array(prices)
+        q1 = np.percentile(arr, 25)
+        q3 = np.percentile(arr, 75)
+        iqr = q3 - q1
+        filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
+        # Дополнительно: фильтруем значения, которые отличаются от медианы более чем в 3 раза
+        med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
+        filtered = filtered[np.abs(filtered - med) <= 3 * med]
+        return filtered.tolist() if len(filtered) > 0 else arr.tolist()
+
+    result = []
+    for day, data in grouped.items():
+        for currency in ("adena", "coin"):
+            prices = data["_prices"][currency]
+            filtered = iqr_filter(prices)
+            if filtered:
+                value = int(sum(filtered)/len(filtered)) if aggregate == "avg" else min(filtered)
+                data[currency] = value
+            elif prices:
+                value = int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
+                data[currency] = value
+        del data["_prices"]
+        result.append(data)
+    return sorted(result, key=lambda x: x["timestamp"])
 
 async def get_set_price_history():
     pass
 
 async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, aggregate: str = "avg") -> Optional[int]:
+    from collections import defaultdict
+    from statistics import median
     PH = PriceHistory
-    base_query = select(PH.id, PH.price, PH.timestamp).where(
-        PH.item_id == 793,
-        PH.currency == "adena"
-    )
-    if to_date:
-        base_query = base_query.where(PH.timestamp <= to_date)
-    quartiled = get_quartiled_query(base_query, order_by=PH.price).cte("quartiled_coin")
-    iqr = get_iqr_query(quartiled).cte("iqr_coin")
-    filtered = (
-        select(
-            quartiled.c.price
-        )
-        .select_from(quartiled)
-        .join(iqr,  literal(True))
-        .where(
-            quartiled.c.price.between(
-                iqr.c.q1 - 1.5 * (iqr.c.q3 - iqr.c.q1),
-                iqr.c.q3 + 1.5 * (iqr.c.q3 - iqr.c.q1)
-            )
-        )
-    )
-    result = await db.execute(filtered)
-    prices = result.scalars().all()
-    if not prices:
-        return None
-    if aggregate == "min":
-        return min(prices)
-    else:
-        return int(sum(prices) / len(prices))
-
-async def get_coin_price_on_day(db: AsyncSession, day: date, aggregate: str = "avg") -> Optional[int]:
-    PH = PriceHistory
-    base_query = select(PH.id, PH.price, PH.timestamp).where(
+    # Получаем все записи по item_id=793, currency='adena' до to_date (или сегодня)
+    if to_date is None:
+        to_date = datetime.utcnow()
+    base_query = select(
+        PH.price,
+        func.date(PH.timestamp).label("day")
+    ).where(
         PH.item_id == 793,
         PH.currency == "adena",
-        func.date(PH.timestamp) == day
+        PH.timestamp <= to_date,
+        PH.price > 10
     )
-    quartiled = get_quartiled_query(base_query, order_by=PH.price).cte("quartiled_coin_day")
-    iqr = get_iqr_query(quartiled).cte("iqr_coin_day")
-    filtered = (
-        select(
-            quartiled.c.price
-        )
-        .select_from(quartiled)
-        .where(
-            quartiled.c.price.between(
-                iqr.c.q1 - 1.5 * (iqr.c.q3 - iqr.c.q1),
-                iqr.c.q3 + 1.5 * (iqr.c.q3 - iqr.c.q1)
-            )
-        )
+    base_query = base_query.order_by(func.date(PH.timestamp))
+    result = await db.execute(base_query)
+    rows = result.mappings().all()
+    # Группируем по дню
+    grouped = defaultdict(list)
+    for row in rows:
+        day = row["day"]
+        price = int(row["price"])
+        grouped[day].append(price)
+    # Агрегируем по последнему дню с данными
+    if not grouped:
+        return None
+    last_day = max(grouped.keys())
+    prices = grouped[last_day]
+    def iqr_filter(prices):
+        if len(prices) < 4:
+            return prices
+        arr = np.array(prices)
+        q1 = np.percentile(arr, 25)
+        q3 = np.percentile(arr, 75)
+        iqr = q3 - q1
+        filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
+        # Дополнительно: фильтруем значения, которые отличаются от медианы более чем в 3 раза
+        med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
+        filtered = filtered[np.abs(filtered - med) <= 3 * med]
+        return filtered.tolist() if len(filtered) > 0 else arr.tolist()
+    filtered = iqr_filter(prices)
+    if filtered:
+        return int(sum(filtered)/len(filtered)) if aggregate == "avg" else min(filtered)
+    return int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
+
+async def get_coin_price_on_day(db: AsyncSession, day: date, aggregate: str = "avg") -> Optional[int]:
+    from statistics import median
+    PH = PriceHistory
+    base_query = select(
+        PH.price
+    ).where(
+        PH.item_id == 793,
+        PH.currency == "adena",
+        func.date(PH.timestamp) == day,
+        PH.price > 10
     )
-    result = await db.execute(filtered)
-    prices = result.scalars().all()
+    result = await db.execute(base_query)
+    prices = [int(row[0]) for row in result.fetchall()]
+    def iqr_filter(prices):
+        if len(prices) < 4:
+            return prices
+        arr = np.array(prices)
+        q1 = np.percentile(arr, 25)
+        q3 = np.percentile(arr, 75)
+        iqr = q3 - q1
+        filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
+        # Дополнительно: фильтруем значения, которые отличаются от медианы более чем в 3 раза
+        med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
+        filtered = filtered[np.abs(filtered - med) <= 3 * med]
+        return filtered.tolist() if len(filtered) > 0 else arr.tolist()
+    filtered = iqr_filter(prices)
+    if filtered:
+        return int(sum(filtered)/len(filtered)) if aggregate == "avg" else min(filtered)
     if prices:
-        if aggregate == "min":
-            return min(prices)
-        return int(sum(prices) / len(prices))
+        return int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
     return None
