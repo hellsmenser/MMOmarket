@@ -95,17 +95,22 @@
 - Frontend: [MMO Market frontend](https://github.com/hellsmenser/MMOmarket-frontend)
 
 
-## Disclaimer
+## Disclaimer / Дисклеймер
 
 This is an independent, open-source fan project created for informational purposes only.  
-It is not affiliated with, endorsed by, or associated with NCSoft, its regional partners, or distributors.  
+It is not affiliated with, endorsed by, or associated with NCSoft, its current or former regional partners or distributors, including 4game (formerly operated by Innоva).  
 All item names and terminology are used solely for reference and identification purposes.  
-All trademarks and game content remain the property of their respective owners.
+All trademarks and game content remain the property of their respective owners.  
+Data is collected from Telegram notifications received by users from the official 4game bot.
+
+---
 
 Это независимый проект с открытым исходным кодом, созданный исключительно в информационных целях.  
-Он не связан с NCSoft, ее региональными партнерами или дистрибьюторами, не одобряется ими и не ассоциируется с ними.  
-Все названия предметов и терминология используются исключительно в справочных и идентификационных целях.  
-Все торговые марки и игровой контент остаются собственностью их соответствующих владельцев.
+Он не связан с NCSoft, её текущими или бывшими региональными партнёрами или дистрибьюторами, включая 4game (ранее управляемый компанией Innоva).  
+Все названия предметов и игровая терминология используются исключительно для справки и идентификации.  
+Все торговые марки и материалы остаются собственностью их правообладателей.  
+Данные собираются из Telegram-уведомлений, получаемых пользователями от официального бота 4game. 
+
 
 
 ---

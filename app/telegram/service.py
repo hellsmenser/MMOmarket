@@ -1,8 +1,10 @@
+import os
 from collections import deque, defaultdict
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_env, is_production
 from app.db.schemas.price import PriceCreate
 from app.telegram.classifier import classify_from_history
 from app.telegram.client import client, start_client, close_client
@@ -79,7 +81,7 @@ async def fetch_and_store_messages():
             await add_prices_batch(session, price_objs)
             logger.info(f"✅ Saved {len(parsed_batch)} price entries")
 
-        if all_messages:
+        if all_messages and is_production():
             entity = await client.get_entity(BOT_USERNAME)
             last_msg_id = max(msg.id for msg in all_messages)
             await client.send_read_acknowledge(entity, max_id=last_msg_id)

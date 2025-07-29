@@ -10,3 +10,20 @@ def get_tg_api_hash() -> str:
 
 def get_tg_session_name() -> str:
     return os.getenv("TG_SESSION_NAME", "default_session")
+
+def get_env() -> str:
+    env = os.getenv("ENV", "dev").lower()
+    if env not in ["dev", "prod"]:
+        raise ValueError(f"Invalid environment: {env}")
+    return env
+
+def is_production() -> bool:
+    return get_env() == "prod"
+
+origins_map = {
+    "production": [
+        "https://hellsmenser.github.io",
+        "https://hellsmenser.github.io/MMOMarket-frontend"
+    ],
+    "development": ["*"]
+}

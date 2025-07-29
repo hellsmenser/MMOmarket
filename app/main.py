@@ -2,6 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
+from app.config import is_production, origins_map
 from app.core.db import init_db
 from app.core.logger import setup_logging
 from app.services import controls
@@ -10,16 +11,12 @@ setup_logging()
 app = FastAPI(
     title="L2 Market API",
     description="Userbot-based Telegram price tracker",
-    version="0.1.0",
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None
+    version="0.1.0"
 )
+
 scheduler = AsyncIOScheduler()
-origins = [
-    "https://hellsmenser.github.io",
-    "https://hellsmenser.github.io/MMOMarket-frontend",
-]
+
+origins = origins_map["production" if is_production() else "development"]
 
 app.include_router(api_router)
 app.add_middleware(
