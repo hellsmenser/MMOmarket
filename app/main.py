@@ -5,13 +5,15 @@ from app.api.router import api_router
 from app.config import is_production, origins_map
 from app.core.db import init_db
 from app.core.logger import setup_logging
+from app.core.redis import startup_redis
 from app.services import controls
 
 setup_logging()
 app = FastAPI(
     title="L2 Market API",
     description="Userbot-based Telegram price tracker",
-    version="0.1.0"
+    version="0.1.0",
+    on_startup=[startup_redis]
 )
 
 scheduler = AsyncIOScheduler()

@@ -26,8 +26,12 @@ class PriceUpdate(BaseModel):
 
 
 class PriceHistory(BaseModel):
-    adena: Optional[int] = Field(..., example=3600000)
-    coin: Optional[int] = Field(..., example=1000)
+    adena_avg: Optional[int] = Field(None, example=3600000)
+    adena_min: Optional[int] = Field(None, example=3500000)
+    adena_volume: Optional[int] = Field(None, example=12)
+    coin_avg: Optional[int] = Field(None, example=1000)
+    coin_min: Optional[int] = Field(None, example=950)
+    coin_volume: Optional[int] = Field(None, example=8)
     coin_price: Optional[int] = Field(None, example=1000)
     timestamp: datetime = Field(..., example="2023-10-01T12:00:00Z")
 

@@ -1,19 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.core.db import get_async_session
 from app.db.schemas.item import ItemCreate, ItemOut, ItemUpdate, ItemActivity
 from app.services import items as service
+from app.config import get_x_secret_key
 
 router = APIRouter()
 
 
 @router.post("/", response_model=ItemOut)
 async def add_item(
-    item: ItemCreate,
-    db: AsyncSession = Depends(get_async_session)
+        item: ItemCreate,
+        db: AsyncSession = Depends(get_async_session),
+        x_secret_key: str = Header(None, alias="X-secret-key")
 ):
+    secret = get_x_secret_key()
+    if not x_secret_key or x_secret_key != secret:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-secret-key")
     return await service.create_item(db, item)
 
 
@@ -44,7 +49,7 @@ async def get_top_active_items(
         db: AsyncSession = Depends(get_async_session),
         category_id: int = Query(None, ge=1, description="Filter by category ID")
 ):
-    volatility = await service.get_top_active_items(db, category_id=category_id)
+    volatility = await service.get_top_active_items(db=db, category_id=category_id)
     if not volatility:
         raise HTTPException(status_code=404, detail="Items not found")
     return volatility
@@ -55,7 +60,7 @@ async def get_item_by_id(
         item_id: int = Path(..., gt=0),
         db: AsyncSession = Depends(get_async_session)
 ):
-    item = await service.get_item(db, item_id)
+    item = await service.get_item(db=db, item_id=item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
@@ -67,7 +72,7 @@ async def update_item_by_id(
         item_in: ItemUpdate = ...,
         db: AsyncSession = Depends(get_async_session)
 ):
-    updated = await service.update_item(db, item_id, item_in)
+    updated = await service.update_item(db=db, item_id=item_id, item_in=item_in)
     if not updated:
         raise HTTPException(status_code=404, detail="Item not found")
     return updated

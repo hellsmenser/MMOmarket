@@ -1,11 +1,11 @@
-import os
 from collections import deque, defaultdict
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_env, is_production
+from app.config import is_production
 from app.db.schemas.price import PriceCreate
+from app.services.items import get_top_active_items
 from app.telegram.classifier import classify_from_history
 from app.telegram.client import client, start_client, close_client
 from app.telegram.parser import parse_price_message
@@ -13,6 +13,7 @@ from app.db.crud.item import get_item_by_name
 from app.db.crud.price import add_prices_batch, get_latest_prices_for_classification
 from app.core.db import get_async_session
 from app.services.prices import get_coin_price
+from app.core.redis import get_redis_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,9 @@ async def fetch_and_store_messages():
             last_msg_id = max(msg.id for msg in all_messages)
             await client.send_read_acknowledge(entity, max_id=last_msg_id)
 
+        redis = await get_redis_client()
+        await redis.flushdb()
+        await get_top_active_items(session)
         break
     await close_client()
 

@@ -26,6 +26,27 @@ def get_env() -> str:
 def is_production() -> bool:
     return get_env() == "prod"
 
+
+def get_redis_host() -> str:
+    return os.getenv("REDIS_HOST", "localhost")
+
+
+def get_redis_port() -> int:
+    return int(os.getenv("REDIS_PORT", 6379))
+
+
+def get_redis_db() -> int:
+    return int(os.getenv("REDIS_DB", 0))
+
+
+def get_redis_password() -> str | None:
+    return os.getenv("REDIS_PASSWORD", None)
+
+
+def get_x_secret_key() -> str:
+    return os.getenv("X_SECRET_KEY")
+
+
 origins_map = {
     "production": [
         "https://hellsmenser.github.io",

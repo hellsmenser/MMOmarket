@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.crud import item as crud
 from app.db.schemas.category import CategoryShort
 from app.db.schemas.item import ItemCreate, ItemUpdate, ItemOut, ItemActivity
+from app.core.redis import redis_cache
 
 
 async def create_item(db: AsyncSession, item_in: ItemCreate) -> ItemOut:
@@ -25,7 +26,9 @@ async def update_item(db: AsyncSession, item_id: int, item_in: ItemUpdate) -> It
 async def delete_item(db: AsyncSession, item_id: int) -> bool:
     return await crud.delete_item(db, item_id)
 
-async def get_top_active_items(db: AsyncSession, category_id: int | None = None):
+
+@redis_cache(ttl=7200, model=ItemActivity)
+async def get_top_active_items(db: AsyncSession, category_id: int | None = None) -> list[ItemActivity]:
     volatility = await crud.get_top_active_items(db, category_id=category_id)
     return [
         ItemActivity(

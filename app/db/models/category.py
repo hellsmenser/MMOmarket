@@ -10,7 +10,7 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
-    # Обратная связь к предметам
+    # Back reference to items
     items: Mapped[list["Item"]] = relationship(
         back_populates="category",
         cascade="all, delete-orphan"

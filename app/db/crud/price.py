@@ -89,16 +89,14 @@ async def get_item_price_history(
     db: AsyncSession,
     item_id: int,
     period: int,
-    modification: Optional[str] = None,
-    aggregate: str = "avg"
+    modification: Optional[str] = None
 ) -> list:
     from collections import defaultdict
-    from statistics import median
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=period)
     PH = PriceHistory
 
-    # Получаем все записи за период одним запросом
+    # Get all records for the period in a single query
     base_query = select(
         PH.price,
         PH.currency,
@@ -144,12 +142,14 @@ async def get_item_price_history(
         for currency in ("adena", "coin"):
             prices = data["_prices"][currency]
             filtered = iqr_filter(prices)
-            if filtered:
-                value = int(sum(filtered)/len(filtered)) if aggregate == "avg" else min(filtered)
-                data[currency] = value
-            elif prices:
-                value = int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
-                data[currency] = value
+            avg = int(sum(filtered)/len(filtered)) if filtered else (int(sum(prices)/len(prices)) if prices else None)
+            min_v = min(filtered) if filtered else (min(prices) if prices else None)
+            volume = len(prices)
+            data[currency] = {
+                "avg": avg,
+                "min": min_v,
+                "volume": volume
+            }
         del data["_prices"]
         result.append(data)
     return sorted(result, key=lambda x: x["timestamp"])
