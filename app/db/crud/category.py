@@ -5,11 +5,13 @@ from sqlalchemy.orm import selectinload
 from app.db.models.category import Category
 from app.db.schemas import category as schema
 
+
 async def get_all(session: AsyncSession) -> list[Category]:
     result = await session.execute(
         select(Category)
     )
     return result.scalars().all()
+
 
 async def create(session: AsyncSession, data: schema.CategoryCreate) -> schema.CategoryRead:
     obj = Category(**data.dict())

@@ -5,20 +5,24 @@ from app.db.schemas.category import CategoryShort
 from app.db.schemas.item import ItemCreate, ItemUpdate, ItemOut, ItemActivity
 
 
-async def create_item(db: AsyncSession, item_in: ItemCreate):
+async def create_item(db: AsyncSession, item_in: ItemCreate) -> ItemOut:
     return await crud.create_item(db, item_in)
 
-async def get_items(db: AsyncSession, page: int, page_size: int):
+
+async def get_items(db: AsyncSession, page: int, page_size: int) -> list[ItemOut]:
     items = await crud.get_items(db, page, page_size)
     return [ItemOut.model_validate(item) for item in items]
 
-async def get_item(db: AsyncSession, item_id: int):
+
+async def get_item(db: AsyncSession, item_id: int) -> ItemOut | None:
     return await crud.get_item(db, item_id)
 
-async def update_item(db: AsyncSession, item_id: int, item_in: ItemUpdate):
+
+async def update_item(db: AsyncSession, item_id: int, item_in: ItemUpdate) -> ItemOut | None:
     return await crud.update_item(db, item_id, item_in)
 
-async def delete_item(db: AsyncSession, item_id: int):
+
+async def delete_item(db: AsyncSession, item_id: int) -> bool:
     return await crud.delete_item(db, item_id)
 
 async def get_top_active_items(db: AsyncSession, category_id: int | None = None):
@@ -35,6 +39,7 @@ async def get_top_active_items(db: AsyncSession, category_id: int | None = None)
         for row in volatility
     ]
 
-async def search_items(db: AsyncSession, query: str, page: int = 1, page_size: int = 20):
+
+async def search_items(db: AsyncSession, query: str, page: int = 1, page_size: int = 20) -> list[ItemOut]:
     items = await crud.search_items_by_name(db, query, page, page_size)
     return [ItemOut.model_validate(item) for item in items]

@@ -116,7 +116,7 @@ async def get_item_price_history(
     result = await db.execute(base_query)
     rows = result.mappings().all()
 
-    # Группируем по дню и валюте
+    # Group by day and currency
     grouped = defaultdict(lambda: {"timestamp": None, "adena": None, "coin": None, "_prices": {"adena": [], "coin": []}})
     for row in rows:
         day = row["day"]
@@ -125,16 +125,16 @@ async def get_item_price_history(
         grouped[day]["timestamp"] = day
         grouped[day]["_prices"][currency].append(price)
 
-    # IQR-фильтрация и fallback в Python
+    # IQR filtering and Python fallback
     def iqr_filter(prices):
         if len(prices) < 4:
-            return prices  # fallback: не фильтруем, если мало значений
+            return prices  # fallback: do not filter if there are few values
         arr = np.array(prices)
         q1 = np.percentile(arr, 25)
         q3 = np.percentile(arr, 75)
         iqr = q3 - q1
         filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
-        # Дополнительно: фильтруем значения, которые отличаются от медианы более чем в 3 раза
+        # Additionally: filter values that differ from the median by more than 3 times
         med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
         filtered = filtered[np.abs(filtered - med) <= 3 * med]
         return filtered.tolist() if len(filtered) > 0 else arr.tolist()
@@ -159,9 +159,8 @@ async def get_set_price_history():
 
 async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, aggregate: str = "avg") -> Optional[int]:
     from collections import defaultdict
-    from statistics import median
     PH = PriceHistory
-    # Получаем все записи по item_id=793, currency='adena' до to_date (или сегодня)
+    # Get all records for item_id=793, currency='adena' up to to_date (or today)
     if to_date is None:
         to_date = datetime.utcnow()
     base_query = select(
@@ -176,13 +175,13 @@ async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, a
     base_query = base_query.order_by(func.date(PH.timestamp))
     result = await db.execute(base_query)
     rows = result.mappings().all()
-    # Группируем по дню
+    # Group by day
     grouped = defaultdict(list)
     for row in rows:
         day = row["day"]
         price = int(row["price"])
         grouped[day].append(price)
-    # Агрегируем по последнему дню с данными
+    # Aggregate by the last day with data
     if not grouped:
         return None
     last_day = max(grouped.keys())
@@ -195,7 +194,7 @@ async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, a
         q3 = np.percentile(arr, 75)
         iqr = q3 - q1
         filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
-        # Дополнительно: фильтруем значения, которые отличаются от медианы более чем в 3 раза
+        # Additionally: filter values that differ from the median by more than 3 times
         med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
         filtered = filtered[np.abs(filtered - med) <= 3 * med]
         return filtered.tolist() if len(filtered) > 0 else arr.tolist()
@@ -205,7 +204,6 @@ async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, a
     return int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
 
 async def get_coin_price_on_day(db: AsyncSession, day: date, aggregate: str = "avg") -> Optional[int]:
-    from statistics import median
     PH = PriceHistory
     base_query = select(
         PH.price
@@ -225,7 +223,7 @@ async def get_coin_price_on_day(db: AsyncSession, day: date, aggregate: str = "a
         q3 = np.percentile(arr, 75)
         iqr = q3 - q1
         filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
-        # Дополнительно: фильтруем значения, которые отличаются от медианы более чем в 3 раза
+        # Additionally: filter values that differ from the median by more than 3 times
         med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
         filtered = filtered[np.abs(filtered - med) <= 3 * med]
         return filtered.tolist() if len(filtered) > 0 else arr.tolist()

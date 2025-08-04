@@ -10,7 +10,7 @@ API_ID = get_tg_api_id()
 API_HASH = get_tg_api_hash()
 SESSION_NAME = get_tg_session_name()
 
-# Инициализируем клиента
+# Initialize client
 client = TelegramClient(
     SESSION_NAME,
     API_ID,
@@ -37,3 +37,4 @@ async def close_client():
     if client.is_connected():
         await client.disconnect()
         logger.info("✅ Telegram client disconnected")
+

@@ -49,7 +49,8 @@ async def get_item(db: AsyncSession, item_id: int):
     )
     return result.scalar_one_or_none()
 
-async  def get_item_by_name(db: AsyncSession, item_name: str) -> Optional[Item]:
+
+async def get_item_by_name(db: AsyncSession, item_name: str) -> Optional[Item]:
     stmt = select(Item).options(selectinload(Item.category)).where(Item.name == item_name)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -67,8 +68,9 @@ async def get_items(db: AsyncSession, page: int, page_size: int):
     )
     return result.scalars().all()
 
+
 async def update_item(
-    db: AsyncSession, item_id: int, item_in: ItemUpdate
+        db: AsyncSession, item_id: int, item_in: ItemUpdate
 ) -> Optional[Item]:
     item = await get_item(db, item_id)
     if not item:
@@ -87,7 +89,7 @@ async def update_item(
 
 
 async def delete_item(
-    db: AsyncSession, item_id: int
+        db: AsyncSession, item_id: int
 ) -> bool:
     item = await get_item(db, item_id)
     if not item:
@@ -95,6 +97,7 @@ async def delete_item(
     await db.delete(item)
     await db.commit()
     return True
+
 
 async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page_size: int = 20):
     fts_query = sanitize_fts_query(query)
@@ -117,7 +120,9 @@ async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page
     result = await db.execute(items_stmt)
     return result.scalars().all()
 
-async def get_top_active_items(session: AsyncSession, days: int = 7, limit: int = 15, category_id: Optional[int] = None):
+
+async def get_top_active_items(session: AsyncSession, days: int = 7, limit: int = 15,
+                               category_id: Optional[int] = None):
     since = datetime.utcnow() - timedelta(days=days)
     PH = PriceHistory
 

@@ -16,7 +16,7 @@ def setup_logging():
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # Обработчик для INFO и WARNING
+    # Handler for INFO and WARNING
     info_handler = RotatingFileHandler(
         info_log, maxBytes=500_000, backupCount=5, encoding="utf-8"
     )
@@ -24,14 +24,14 @@ def setup_logging():
     info_handler.setFormatter(formatter)
     info_handler.addFilter(lambda record: record.levelno < logging.ERROR)
 
-    # Обработчик для ERROR и CRITICAL
+    # Handler for ERROR and CRITICAL
     error_handler = RotatingFileHandler(
         error_log, maxBytes=500_000, backupCount=5, encoding="utf-8"
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
 
-    # Консольный обработчик
+    # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
@@ -42,3 +42,4 @@ def setup_logging():
 
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.info("✓ Логгирование настроено")
+

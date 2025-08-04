@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 
 def parse_price_message(text: str) -> dict | None:
-    # Определяем тип торговли
+    # Determine trade type
     if "Всемирной Торговли" in text:
         currency = "coin"
         source = "world_trade"
@@ -16,13 +16,13 @@ def parse_price_message(text: str) -> dict | None:
         currency = "unknown"
         source = "unknown"
 
-    # Имя предмета
+    # Item name
     name_match = re.search(r'Предмет\s+"(.+?)"', text)
     if not name_match:
         return None
     name = name_match.group(1).strip()
 
-    # Цена
+    # Price
     price_match = re.search(r'Цена:\s*([\d\s]+)', text)
     if not price_match:
         return None
