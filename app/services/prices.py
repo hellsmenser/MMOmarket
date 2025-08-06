@@ -11,7 +11,7 @@ async def add_prices_batch(db: AsyncSession, prices: List[PriceCreate]) -> List[
     return await crud.add_prices_batch(db, prices)
 
 
-@redis_cache(ttl=7200, model=PriceHistory)
+@redis_cache(ttl=7200, model=PriceHistory, is_list=True)
 async def get_item_price_history(
     db: AsyncSession,
     item_id: int,

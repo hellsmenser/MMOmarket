@@ -27,7 +27,7 @@ async def delete_item(db: AsyncSession, item_id: int) -> bool:
     return await crud.delete_item(db, item_id)
 
 
-@redis_cache(ttl=7200, model=ItemActivity)
+@redis_cache(ttl=7200, model=ItemActivity, is_list=True)
 async def get_top_active_items(db: AsyncSession, category_id: int | None = None) -> list[ItemActivity]:
     volatility = await crud.get_top_active_items(db, category_id=category_id)
     return [

@@ -32,7 +32,7 @@ async def get_redis_client() -> Redis:
     return _redis_client
 
 
-def redis_cache(ttl: int = 7200, model=None, exclude_keys=("db", "session")):
+def redis_cache(ttl: int = 7200, model=None, is_list=False, exclude_keys=("db", "session")):
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -45,16 +45,21 @@ def redis_cache(ttl: int = 7200, model=None, exclude_keys=("db", "session")):
                 if cached is not None:
                     data = json.loads(cached)
                     if model:
+                        if data is None:
+                            return [] if is_list else None
                         if isinstance(data, list):
                             return [model.model_validate(item) for item in data]
                         return model.model_validate(data)
                     return data
             except RedisError:
                 pass
+
             result = await func(*args, **kwargs)
 
             try:
                 if model:
+                    if result is None:
+                        return [] if is_list else None
                     if isinstance(result, list):
                         serializable = [item.model_dump() if hasattr(item, 'model_dump') else item for item in result]
                     else:
@@ -66,7 +71,7 @@ def redis_cache(ttl: int = 7200, model=None, exclude_keys=("db", "session")):
             except RedisError:
                 pass
 
-            return result
+            return result if result is not None else ([] if is_list else None)
 
         return wrapper
 
