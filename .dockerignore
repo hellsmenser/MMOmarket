@@ -1,0 +1,23 @@
+# venv's
+.venv/
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea
+
+# DB, sessions
+*.db
+*.sqlite3
+*.session
+
+# migrations
+migrations/
+
+# env
+.env
+
