@@ -20,7 +20,14 @@ def parse_price_message(text: str) -> dict | None:
     name_match = re.search(r'Предмет\s+"(.+?)"', text)
     if not name_match:
         return None
-    name = name_match.group(1).strip()
+    raw_name = name_match.group(1).strip()
+
+    # Strip optional leading [ID]
+    id_match = re.match(r'^\[(\d+)\]\s*(.+)$', raw_name)
+    if id_match:
+        name = id_match.group(2).strip()
+    else:
+        name = raw_name
 
     # Price
     price_match = re.search(r'Цена:\s*([\d\s]+)', text)
