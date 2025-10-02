@@ -13,7 +13,7 @@ from app.db.crud.item import get_item_by_name
 from app.db.crud.price import add_prices_batch, get_latest_prices_for_classification
 from app.core.db import get_async_session
 from app.services.prices import get_coin_price
-from app.core.redis import get_redis_client
+from app.core.redis import get_redis_client, clear_cache
 import logging
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ async def fetch_and_store_messages():
             await client.send_read_acknowledge(entity, max_id=last_msg_id)
 
         redis = await get_redis_client()
-        await redis.flushdb()
+        await clear_cache(redis)
         await get_top_active_items(session)
         break
     await close_client()
