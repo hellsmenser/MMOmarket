@@ -77,7 +77,8 @@ async def login(user_data: UserLogin,
             value=token,
             httponly=True,
             secure=config.JWT_COOKIE_SECURE,
-            samesite=config.JWT_COOKIE_SAMESITE
+            samesite=config.JWT_COOKIE_SAMESITE,
+            max_age=config.JWT_ACCESS_TOKEN_EXPIRES
         )
         return {"access_token": token, "token_type": "bearer"}
     except Exception as e:

@@ -1,17 +1,40 @@
-from fastapi import Request, HTTPException, status
+from fastapi import Request, HTTPException, status, Response
 import inspect
 
-from app.config import security
+from app.config import security, config
 
-async def auth_or_403(request: Request):
+
+async def auth_or_403(request: Request, response: Response):
     fn = security.access_token_required
     try:
         if inspect.iscoroutinefunction(fn):
-            return await fn(request)
-        return fn(request)
+            user = await fn(request)
+        else:
+            user = fn(request)
+
+        new_token = security.create_access_token(uid=user.sub)
+        response.set_cookie(
+            key=config.JWT_ACCESS_COOKIE_NAME,
+            value=new_token,
+            httponly=True,
+            secure=config.JWT_COOKIE_SECURE,
+            samesite=config.JWT_COOKIE_SAMESITE,
+            max_age=config.JWT_ACCESS_TOKEN_EXPIRES
+        )
+
+        return user
+
     except HTTPException as e:
+        print(e.detail)
         if e.status_code in (401, 403):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authenticated")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authenticated"
+            )
         raise
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authenticated")
+    except Exception as e:
+        print(str(e))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authenticated"
+        )

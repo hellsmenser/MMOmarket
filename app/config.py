@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from dotenv import load_dotenv
 import os
 from functools import lru_cache
@@ -70,6 +72,7 @@ def get_authx() -> AuthX:
     cfg.JWT_TOKEN_LOCATION = ["cookies"]
     cfg.JWT_COOKIE_SAMESITE = "none"
     cfg.JWT_COOKIE_SECURE = True
+    cfg.JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=3)
     return AuthX(cfg)
 
 
