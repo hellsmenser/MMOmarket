@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 import os
+from functools import lru_cache
+from authx import AuthX, AuthXConfig
 
 load_dotenv()
 
@@ -47,10 +49,29 @@ def get_x_secret_key() -> str:
     return os.getenv("X_SECRET_KEY")
 
 
+def get_session_key() -> str:
+    return os.getenv("SESSION_KEY")
+
+
 origins_map = {
     "production": [
         "https://hellsmenser.github.io",
         "https://hellsmenser.github.io/MMOMarket-frontend"
     ],
-    "development": ["*"]
+    "development": ["http://127.0.0.1:5173", "http://localhost:5173"]
 }
+
+
+@lru_cache()
+def get_authx() -> AuthX:
+    cfg = AuthXConfig()
+    cfg.JWT_SECRET_KEY = get_session_key()
+    cfg.JWT_ACCESS_COOKIE_NAME = "MMOMarket_Access_Cookie"
+    cfg.JWT_TOKEN_LOCATION = ["cookies"]
+    cfg.JWT_COOKIE_SAMESITE = "none"
+    cfg.JWT_COOKIE_SECURE = True
+    return AuthX(cfg)
+
+
+security: AuthX = get_authx()
+config: AuthXConfig = security.config

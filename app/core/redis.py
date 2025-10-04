@@ -34,14 +34,14 @@ async def get_redis_client() -> Redis:
     return _redis_client
 
 
-def redis_cache(ttl: int = 7200, model=None, is_list=False, exclude_keys=("db", "session")):
+def redis_cache(ttl: int = 7200, model=None, is_list=False, exclude_keys=("db", "session"), prefix = "cache"):
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             filtered_kwargs = {k: v for k, v in kwargs.items() if k not in exclude_keys}
             call_data = f"{json.dumps(args, default=str)}:{json.dumps(filtered_kwargs, default=str)}"
             md5 = tools.get_md5_hash(call_data)
-            key = f"cache:{func.__name__}:{md5}"
+            key = f"{prefix}:{func.__name__}:{md5}"
 
             try:
                 client = await get_redis_client()
@@ -81,9 +81,9 @@ def redis_cache(ttl: int = 7200, model=None, is_list=False, exclude_keys=("db", 
 
     return decorator
 
-async def clear_cache(redis):
+async def clear_cache(redis, prefix="cache"):
     cursor = b"0"
-    pattern = "cache:*"
+    pattern = f"{prefix}:*"
     while cursor:
         cursor, keys = await redis.scan(cursor=cursor, match=pattern, count=500)
         if keys:

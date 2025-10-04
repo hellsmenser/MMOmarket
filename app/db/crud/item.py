@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, over, case
+from sqlalchemy import select, func
 from typing import Optional
 import re
 
