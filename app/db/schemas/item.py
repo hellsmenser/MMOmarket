@@ -7,20 +7,16 @@ class ItemBase(BaseModel):
     name: str = Field(..., example="Sword of Valor")
     modifications: Optional[List[int]] = Field(default=None, example=[3, 5, 10])
 
+
 class ItemCreate(ItemBase):
     category_id: Optional[int] = Field(default=None, example=1)
 
-class ItemShort(BaseModel):
-    id: int
-    name: str
-
-    class Config:
-        from_attributes = True
 
 class ItemUpdate(BaseModel):
     name: Optional[str] = None
     modifications: Optional[List[int]] = None
     category_id: Optional[int] = None
+
 
 class ItemOut(BaseModel):
     id: int
@@ -41,6 +37,7 @@ class ItemOut(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class ItemActivity(BaseModel):
     id: int

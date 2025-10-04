@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class ItemShort(BaseModel):
     id: int
     name: str

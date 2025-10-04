@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from dotenv import load_dotenv
 import os
 from functools import lru_cache
@@ -55,6 +53,19 @@ def get_session_key() -> str:
     return os.getenv("SESSION_KEY")
 
 
+def get_database_url() -> str:
+    POSTGRES_USER = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+    POSTGRES_DB = os.getenv("POSTGRES_DB")
+
+    if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_DB]):
+        raise RuntimeError("POSTGRES_* переменные окружения обязательны")
+
+    return f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+
+
 origins_map = {
     "production": [
         "https://hellsmenser.github.io",
@@ -72,7 +83,6 @@ def get_authx() -> AuthX:
     cfg.JWT_TOKEN_LOCATION = ["cookies"]
     cfg.JWT_COOKIE_SAMESITE = "none"
     cfg.JWT_COOKIE_SECURE = True
-    cfg.JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=3)
     return AuthX(cfg)
 
 

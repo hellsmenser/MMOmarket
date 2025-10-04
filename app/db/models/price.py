@@ -1,12 +1,15 @@
 from datetime import datetime
-from sqlalchemy import ForeignKey, BigInteger, Integer, Text, DateTime, func, MetaData
+from sqlalchemy import ForeignKey, BigInteger, Integer, Text, DateTime, func, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
-metadata = MetaData()
 
 class PriceHistory(Base):
     __tablename__ = "price_history"
+    __table_args__ = (
+        Index("ix_price_history_timestamp", "timestamp"),
+        Index("ix_price_history_item_ts", "item_id", "timestamp"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), index=True)
@@ -18,7 +21,8 @@ class PriceHistory(Base):
 
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now()
+        server_default=func.now(),
+        nullable=False
     )
 
     item: Mapped["Item"] = relationship(

@@ -25,15 +25,13 @@ async def auth_or_403(request: Request, response: Response):
         return user
 
     except HTTPException as e:
-        print(e.detail)
         if e.status_code in (401, 403):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authenticated"
             )
         raise
-    except Exception as e:
-        print(str(e))
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authenticated"

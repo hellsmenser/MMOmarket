@@ -9,45 +9,57 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import PriceHistory, Category
 from app.db.models.item import Item
-from app.db.models.item_fts import ItemFTS
 from app.db.schemas.item import ItemCreate, ItemUpdate
 from app.db.crud.utilits import get_quartiled_query, get_iqr_query
 
+MIN_FTS_TOKEN_LEN = 3
+
 
 def sanitize_fts_query(user_input: str) -> str:
-    cleaned = re.sub(r'["`*\\<>:|&~]', ' ', user_input)
-    cleaned = re.sub(r'\s+', ' ', cleaned.strip())
+    cleaned = re.sub(r'[^\w\s-]+', ' ', user_input).strip()
+    cleaned = re.sub(r'\s+', ' ', cleaned)
+    return cleaned[:120]
 
-    if not re.fullmatch(r'[\w\s]+', cleaned):
-        return ""
 
-    tokens = cleaned.split()
-    quoted = [f'"{token}"*' for token in tokens]
+def _normalize_query(q: str) -> str:
+    q = q.lower()
+    q = re.sub(r'[^0-9a-zа-яё\s]+', ' ', q)
+    q = re.sub(r'\s+', ' ', q).strip()
+    return q
 
-    return " ".join(quoted)
+
+def _split_tokens(q: str) -> list[str]:
+    return [t for t in q.split() if t]
+
+
+def _fts_tokens(tokens: list[str]) -> list[str]:
+    return [f"{t}:*" for t in tokens if len(t) >= MIN_FTS_TOKEN_LEN]
 
 
 async def create_item(db: AsyncSession, item_in: ItemCreate) -> Item:
     db_item = Item(
         name=item_in.name,
         category_id=item_in.category_id,
-        _modifications=",".join(str(m) for m in (item_in.modifications or []))
     )
+    if item_in.modifications:
+        db_item.modifications = [int(m) for m in item_in.modifications]
     db.add(db_item)
     await db.commit()
     await db.refresh(db_item)
     return db_item
 
 
-async def get_item(db: AsyncSession, item_id: int):
-    result = await db.execute(
+async def get_item(db: AsyncSession, item_id: int) -> Optional[Item]:
+    stmt = (
         select(Item)
         .options(
-            selectinload(Item.category)
+            selectinload(Item.category),
         )
         .where(Item.id == item_id)
+        .limit(1)
     )
-    return result.scalar_one_or_none()
+    res = await db.execute(stmt)
+    return res.scalars().first()
 
 
 async def get_item_by_name(db: AsyncSession, item_name: str) -> Optional[Item]:
@@ -72,14 +84,23 @@ async def get_items(db: AsyncSession, page: int, page_size: int):
 async def update_item(
         db: AsyncSession, item_id: int, item_in: ItemUpdate
 ) -> Optional[Item]:
-    item = await get_item(db, item_id)
+    stmt = (
+        select(Item)
+        .options(
+            selectinload(Item.category),
+        )
+        .where(Item.id == item_id)
+        .limit(1)
+    )
+    res = await db.execute(stmt)
+    item = res.scalars().first()
     if not item:
         return None
 
     if item_in.name is not None:
         item.name = item_in.name
     if item_in.modifications is not None:
-        item.modifications = ",".join(str(m) for m in item_in.modifications)
+        item.modifications = [int(m) for m in item_in.modifications] if item_in.modifications else []
     if item_in.category_id is not None:
         item.category_id = item_in.category_id
 
@@ -100,25 +121,57 @@ async def delete_item(
 
 
 async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page_size: int = 20):
-    fts_query = sanitize_fts_query(query)
-    if not fts_query:
+    norm = _normalize_query(query)
+    if not norm:
+        return []
+    tokens = _split_tokens(norm)
+    if not tokens:
         return []
 
     offset = (page - 1) * page_size
-    fts_stmt = (
-        select(ItemFTS.rowid)
-        .where(ItemFTS.name.match(fts_query))
-        .offset(offset)
-        .limit(page_size)
-    )
-    fts_result = await db.execute(fts_stmt)
-    item_ids = [row[0] for row in fts_result.all()]
-    if not item_ids:
-        return []
+    fts_parts = _fts_tokens(tokens)
 
-    items_stmt = select(Item).where(Item.id.in_(item_ids))
-    result = await db.execute(items_stmt)
-    return result.scalars().all()
+    results_ordered = []
+    seen_ids = set()
+
+    if fts_parts:
+        tsquery_str = " & ".join(fts_parts)
+        tsquery = func.to_tsquery('russian', tsquery_str)
+        tsv = Item.search_vector
+        fts_stmt = (
+            select(Item)
+            .options(selectinload(Item.category))
+            .where(tsv.op('@@')(tsquery))
+            .order_by(func.ts_rank_cd(tsv, tsquery).desc(), Item.id.asc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        fts_res = await db.execute(fts_stmt)
+        for it in fts_res.scalars().unique():
+            results_ordered.append(it)
+            seen_ids.add(it.id)
+
+    last_token = tokens[-1]
+    last_token_short = len(last_token) < MIN_FTS_TOKEN_LEN
+    need_fallback = not results_ordered or last_token_short
+
+    if need_fallback:
+        prefix = last_token
+        ilike_pattern = f"{prefix}%"
+        ilike_stmt = (
+            select(Item)
+            .options(selectinload(Item.category))
+            .where(Item.name.ilike(ilike_pattern))
+            .order_by(Item.name.asc())
+            .limit(page_size)
+        )
+        ilike_res = await db.execute(ilike_stmt)
+        for it in ilike_res.scalars().unique():
+            if it.id not in seen_ids:
+                results_ordered.append(it)
+                seen_ids.add(it.id)
+
+    return results_ordered[:page_size]
 
 
 async def get_top_active_items(session: AsyncSession, days: int = 7, limit: int = 15,
