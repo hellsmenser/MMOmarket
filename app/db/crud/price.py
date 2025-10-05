@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 from sqlalchemy import select, desc, func, or_
@@ -7,8 +8,9 @@ from app.db.models.price import PriceHistory
 from app.db.schemas.price import PriceCreate
 import numpy as np
 
+
 async def add_prices_batch(
-    db: AsyncSession, prices: List[PriceCreate]
+        db: AsyncSession, prices: List[PriceCreate]
 ) -> List[PriceHistory]:
     db_prices = [
         PriceHistory(
@@ -30,12 +32,26 @@ async def add_prices_batch(
     return db_prices
 
 
+def iqr_filter(prices):
+    if len(prices) < 4:
+        return prices
+    arr = np.array(prices)
+    q1 = np.percentile(arr, 25)
+    q3 = np.percentile(arr, 75)
+    iqr = q3 - q1
+    filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
+    # Additionally: filter values that differ from the median by more than 3 times
+    med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
+    filtered = filtered[np.abs(filtered - med) <= 3 * med]
+    return filtered.tolist() if len(filtered) > 0 else arr.tolist()
+
+
 async def get_prices_by_item(
-    db: AsyncSession,
-    item_id: int,
-    limit: int = 100,
-    enchant_level: Optional[str] = None,
-    currency: Optional[str] = None,
+        db: AsyncSession,
+        item_id: int,
+        limit: int = 100,
+        enchant_level: Optional[str] = None,
+        currency: Optional[str] = None,
 ) -> List[PriceHistory]:
     stmt = select(PriceHistory).where(PriceHistory.item_id == item_id)
 
@@ -50,23 +66,25 @@ async def get_prices_by_item(
     result = await db.execute(stmt)
     return result.scalars().all()
 
+
 async def get_latest_price(
-    db: AsyncSession,
-    item_id: int,
-    enchant_level: Optional[int] = None,
-    currency: Optional[str] = None,
+        db: AsyncSession,
+        item_id: int,
+        enchant_level: Optional[int] = None,
+        currency: Optional[str] = None,
 ) -> Optional[PriceHistory]:
     prices = await get_prices_by_item(
         db, item_id=item_id, limit=1, enchant_level=enchant_level, currency=currency
     )
     return prices[0] if prices else None
 
+
 async def get_latest_prices_for_classification(
-    session: AsyncSession,
-    item_id: int,
-    currency: str,
-    mods: list[int],
-    per_mod_limit: int = 3
+        session: AsyncSession,
+        item_id: int,
+        currency: str,
+        mods: list[int],
+        per_mod_limit: int = 3
 ) -> list[tuple[int, int]]:
     prices = []
     for mod in mods:
@@ -85,11 +103,12 @@ async def get_latest_prices_for_classification(
 
     return prices
 
+
 async def get_item_price_history(
-    db: AsyncSession,
-    item_id: int,
-    period: int,
-    modification: Optional[str] = None
+        db: AsyncSession,
+        item_id: int,
+        period: int,
+        modification: Optional[str] = None
 ) -> list:
     from collections import defaultdict
     end_date = datetime.utcnow()
@@ -115,7 +134,8 @@ async def get_item_price_history(
     rows = result.mappings().all()
 
     # Group by day and currency
-    grouped = defaultdict(lambda: {"timestamp": None, "adena": None, "coin": None, "_prices": {"adena": [], "coin": []}})
+    grouped = defaultdict(
+        lambda: {"timestamp": None, "adena": None, "coin": None, "_prices": {"adena": [], "coin": []}})
     for row in rows:
         day = row["day"]
         currency = row["currency"]
@@ -123,26 +143,13 @@ async def get_item_price_history(
         grouped[day]["timestamp"] = day
         grouped[day]["_prices"][currency].append(price)
 
-    # IQR filtering and Python fallback
-    def iqr_filter(prices):
-        if len(prices) < 4:
-            return prices  # fallback: do not filter if there are few values
-        arr = np.array(prices)
-        q1 = np.percentile(arr, 25)
-        q3 = np.percentile(arr, 75)
-        iqr = q3 - q1
-        filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
-        # Additionally: filter values that differ from the median by more than 3 times
-        med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
-        filtered = filtered[np.abs(filtered - med) <= 3 * med]
-        return filtered.tolist() if len(filtered) > 0 else arr.tolist()
-
     result = []
     for day, data in grouped.items():
         for currency in ("adena", "coin"):
             prices = data["_prices"][currency]
             filtered = iqr_filter(prices)
-            avg = int(sum(filtered)/len(filtered)) if filtered else (int(sum(prices)/len(prices)) if prices else None)
+            avg = int(sum(filtered) / len(filtered)) if filtered else (
+                int(sum(prices) / len(prices)) if prices else None)
             min_v = min(filtered) if filtered else (min(prices) if prices else None)
             volume = len(prices)
             data[currency] = {
@@ -154,8 +161,10 @@ async def get_item_price_history(
         result.append(data)
     return sorted(result, key=lambda x: x["timestamp"])
 
+
 async def get_set_price_history():
     pass
+
 
 async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, aggregate: str = "avg") -> Optional[int]:
     from collections import defaultdict
@@ -186,22 +195,12 @@ async def get_coin_price(db: AsyncSession, to_date: Optional[datetime] = None, a
         return None
     last_day = max(grouped.keys())
     prices = grouped[last_day]
-    def iqr_filter(prices):
-        if len(prices) < 4:
-            return prices
-        arr = np.array(prices)
-        q1 = np.percentile(arr, 25)
-        q3 = np.percentile(arr, 75)
-        iqr = q3 - q1
-        filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
-        # Additionally: filter values that differ from the median by more than 3 times
-        med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
-        filtered = filtered[np.abs(filtered - med) <= 3 * med]
-        return filtered.tolist() if len(filtered) > 0 else arr.tolist()
+
     filtered = iqr_filter(prices)
     if filtered:
-        return int(sum(filtered)/len(filtered)) if aggregate == "avg" else min(filtered)
-    return int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
+        return int(sum(filtered) / len(filtered)) if aggregate == "avg" else min(filtered)
+    return int(sum(prices) / len(prices)) if aggregate == "avg" else min(prices)
+
 
 async def get_coin_price_on_day(db: AsyncSession, day: date, aggregate: str = "avg") -> Optional[int]:
     PH = PriceHistory
@@ -215,21 +214,10 @@ async def get_coin_price_on_day(db: AsyncSession, day: date, aggregate: str = "a
     )
     result = await db.execute(base_query)
     prices = [int(row[0]) for row in result.fetchall()]
-    def iqr_filter(prices):
-        if len(prices) < 4:
-            return prices
-        arr = np.array(prices)
-        q1 = np.percentile(arr, 25)
-        q3 = np.percentile(arr, 75)
-        iqr = q3 - q1
-        filtered = arr[(arr >= q1 - 1.5 * iqr) & (arr <= q3 + 1.5 * iqr)]
-        # Additionally: filter values that differ from the median by more than 3 times
-        med = np.median(filtered) if len(filtered) > 0 else np.median(arr)
-        filtered = filtered[np.abs(filtered - med) <= 3 * med]
-        return filtered.tolist() if len(filtered) > 0 else arr.tolist()
+
     filtered = iqr_filter(prices)
     if filtered:
-        return int(sum(filtered)/len(filtered)) if aggregate == "avg" else min(filtered)
+        return int(sum(filtered) / len(filtered)) if aggregate == "avg" else min(filtered)
     if prices:
-        return int(sum(prices)/len(prices)) if aggregate == "avg" else min(prices)
+        return int(sum(prices) / len(prices)) if aggregate == "avg" else min(prices)
     return None
