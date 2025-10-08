@@ -68,8 +68,7 @@ def get_database_url() -> str:
 
 origins_map = {
     "production": [
-        "https://hellsmenser.github.io",
-        "https://hellsmenser.github.io/MMOMarket-frontend"
+        "https://hellsmenser.github.io"
     ],
     "development": ["http://127.0.0.1:5173", "http://localhost:5173"]
 }
