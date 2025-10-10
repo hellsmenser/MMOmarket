@@ -1,10 +1,10 @@
-import logging
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 
 from app.config import get_tg_api_id, get_tg_api_hash, get_tg_session_name
+from app.core import logger
 
-logger = logging.getLogger(__name__)
+logger = logger.get_logger(__name__)
 
 API_ID = get_tg_api_id()
 API_HASH = get_tg_api_hash()

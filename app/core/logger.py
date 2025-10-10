@@ -4,8 +4,16 @@ import os
 from datetime import datetime
 
 LOGS_DIR = "logs"
+_CONFIGURED = False  # добавлено
+
+def get_logger(name: str | None = None):
+    # Используй в модулях: logger = get_logger(__name__)
+    return logging.getLogger(name)
 
 def setup_logging():
+    global _CONFIGURED
+    if _CONFIGURED:
+        return
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     info_log = os.path.join(LOGS_DIR, f"info_{timestamp}.log")
@@ -33,13 +41,16 @@ def setup_logging():
 
     # Console handler
     console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        handlers=[console_handler, info_handler, error_handler]
-    )
+    root = logging.getLogger()
+    prev = len(root.handlers)
+    root.handlers.clear()
+    root.setLevel(logging.INFO)
+    for h in (console_handler, info_handler, error_handler):
+        root.addHandler(h)
 
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.info("✓ Логгирование настроено")
-
+    root.info("✓ Логгирование настроено (prev_handlers=%s)", prev)
+    _CONFIGURED = True

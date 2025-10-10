@@ -3,7 +3,6 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import is_production
 from app.db.schemas.price import PriceCreate
 from app.services.items import get_top_active_items
 from app.telegram.classifier import classify_from_history
@@ -14,9 +13,9 @@ from app.db.crud.price import add_prices_batch, get_latest_prices_for_classifica
 from app.core.db import get_async_session
 from app.services.prices import get_coin_price
 from app.core.redis import get_redis_client, clear_cache
-import logging
+from app.core import logger
 
-logger = logging.getLogger(__name__)
+logger = logger.get_logger(__name__)
 
 BOT_USERNAME = "forgame_bot"
 BATCH_SIZE = 100
@@ -82,7 +81,7 @@ async def fetch_and_store_messages():
             await add_prices_batch(session, price_objs)
             logger.info(f"✅ Saved {len(parsed_batch)} price entries")
 
-        if all_messages and is_production():
+        if all_messages:
             entity = await client.get_entity(BOT_USERNAME)
             last_msg_id = max(msg.id for msg in all_messages)
             await client.send_read_acknowledge(entity, max_id=last_msg_id)
