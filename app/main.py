@@ -32,5 +32,9 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_startup():
     await init_db()
-    scheduler.add_job(controls.collect_prices, "interval", hours=2)
+    scheduler.add_job(controls.collect_prices,
+                      trigger="interval",
+                      minutes=30,
+                      max_instances=1,
+                      id="collect_prices")
     scheduler.start()

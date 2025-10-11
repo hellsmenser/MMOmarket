@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, Index, Computed, text
+from sqlalchemy import String, ForeignKey, Index, Computed, text, Identity, BigInteger
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,7 +12,7 @@ class Item(Base):
         Index("ix_items_name_trgm", text("name gin_trgm_ops"), postgresql_using="gin"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
     tolerance: Mapped[float | None] = mapped_column(default=0.1)

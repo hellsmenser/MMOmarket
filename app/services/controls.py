@@ -1,10 +1,18 @@
 import asyncio
 
 from app.telegram.service import fetch_and_store_messages
+from app.core import logger
+
+logger = logger.get_logger(__name__)
 
 collect_prices_task = None
 async def collect_prices():
-    await fetch_and_store_messages()
+    try:
+        await fetch_and_store_messages()
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.exception(f"collect_prices error: {e}")
 
 def start_collect_prices():
     loop = asyncio.get_event_loop()

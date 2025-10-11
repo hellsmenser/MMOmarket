@@ -1,3 +1,4 @@
+import asyncio
 from collections import deque, defaultdict
 from typing import Optional
 
@@ -19,78 +20,91 @@ logger = logger.get_logger(__name__)
 
 BOT_USERNAME = "forgame_bot"
 BATCH_SIZE = 100
+PARTIAL_SAVE_SIZE = 2500
 
 
 async def fetch_and_store_messages():
-    await start_client()
-    unread_count = await get_undead_count()
-
-    if unread_count == 0:
-        logger.info("📭 No new unread messages")
+    try:
+        await start_client()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.error("Cannot start Telegram client. Skipping.")
         return
-    logger.info(f"📬 Fetching {unread_count} unread messages from {BOT_USERNAME}")
 
-    all_messages = []
-    offset_id = 0
-    fetched = 0
+    try:
+        unread_count = await get_undead_count()
+        if unread_count == 0:
+            logger.info("No new unread messages")
+            return
+        logger.info(f"Fetching {unread_count} unread messages from {BOT_USERNAME}")
 
-    while fetched < unread_count:
-        remaining = unread_count - fetched
-        limit = min(BATCH_SIZE, remaining)
-        batch = await client.get_messages(BOT_USERNAME, limit=limit, offset_id=offset_id)
-        if not batch:
+        entity = await client.get_entity(BOT_USERNAME)
+        offset_id = 0
+        fetched = 0
+        parsed_batch: list[PriceCreate] = []
+        total_saved = 0
+        last_processed_msg_id: int | None = None
+
+        async def flush_prices(session: AsyncSession, max_read_id: int):
+            nonlocal total_saved
+
+            if not parsed_batch:
+                return
+
+            logger.info("Classifing...")
+            await classify_prices(session, parsed_batch)
+            logger.info("Adding into Db...")
+            await add_prices_batch(session, parsed_batch)
+            await client.send_read_acknowledge(entity, max_id=max_read_id)
+
+            total_saved += len(parsed_batch)
+            logger.info(f"✅ Saved {total_saved}.")
+
+            parsed_batch.clear()
+
+        async for session in get_async_session():
+            while fetched < unread_count:
+                remaining = unread_count - fetched
+                limit = min(BATCH_SIZE, remaining)
+                batch_msgs = await client.get_messages(BOT_USERNAME, limit=limit, offset_id=offset_id)
+                if not batch_msgs:
+                    break
+                fetched += len(batch_msgs)
+                offset_id = min(msg.id for msg in batch_msgs)
+                batch_msgs = sorted(batch_msgs, key=lambda m: m.id)
+
+                for msg in batch_msgs:
+                    if not msg.text:
+                        continue
+                    parsed = parse_price_message(msg.text)
+                    if not parsed:
+                        logger.warning(f"❌ Failed to parse message: {msg.text}")
+                        continue
+                    if parsed["currency"] == "unknown":
+                        logger.warning(f"❌ Unknown currency in message: {msg.text}")
+                    item = await get_item_by_name(session, parsed["item_name"])
+                    if not item:
+                        logger.warning(f"❌ Unknown item: {parsed['item_name']}")
+                        continue
+                    price_obj = PriceCreate(item=item, **parsed, timestamp=msg.date)
+                    parsed_batch.append(price_obj)
+                    last_processed_msg_id = msg.id
+
+                # Flush if batch size reached or all fetched
+                if parsed_batch and (len(parsed_batch) >= PARTIAL_SAVE_SIZE or fetched >= unread_count):
+                    await flush_prices(session, last_processed_msg_id)
+
+            redis = await get_redis_client()
+            await clear_cache(redis)
+            await get_top_active_items(session)
             break
-        all_messages.extend(batch)
-        fetched += len(batch)
-        offset_id = min(msg.id for msg in batch)
 
-    logger.info(f"📬 Unread messages: {len(all_messages)}")
-
-    all_messages = sorted(all_messages, key=lambda m: m.id)
-
-    async for session in get_async_session():
-        parsed_batch = []
-        for msg in all_messages:
-            if not msg.text:
-                continue
-
-            parsed = parse_price_message(msg.text)
-            if not parsed:
-                logger.warning(f"❌ Failed to parse message: {msg.text}")
-                continue
-
-            if parsed["currency"] == "unknown":
-                logger.warning(f"❌ Unknown currency in message: {msg.text}")
-            item = await get_item_by_name(session, parsed["item_name"])
-            if not item:
-                logger.warning(f"❌ Unknown item: {parsed['item_name']}")
-                continue
-
-            parsed_batch.append({
-                "item": item,
-                "price": parsed["price"],
-                "currency": parsed["currency"],
-                "enchant_level": parsed.get("enchant_level"),
-                "timestamp": msg.date,
-                "source": parsed["source"]
-            })
-
-        if parsed_batch:
-            price_objs = [PriceCreate(**data) for data in parsed_batch]
-            await classify_prices(session, price_objs)
-            await add_prices_batch(session, price_objs)
-            logger.info(f"✅ Saved {len(parsed_batch)} price entries")
-
-        if all_messages:
-            entity = await client.get_entity(BOT_USERNAME)
-            last_msg_id = max(msg.id for msg in all_messages)
-            await client.send_read_acknowledge(entity, max_id=last_msg_id)
-
-        redis = await get_redis_client()
-        await clear_cache(redis)
-        await get_top_active_items(session)
-        break
-    await close_client()
+        logger.info(f"📦 Finished. Total saved: {total_saved}")
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.exception(f"fetch_and_store_messages error: {e}")
 
 
 async def get_undead_count():

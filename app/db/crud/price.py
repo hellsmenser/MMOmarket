@@ -1,22 +1,26 @@
-import time
 from datetime import datetime, timedelta, date
-from typing import List, Optional
+from typing import List, Optional, Union
 from sqlalchemy import select, desc, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import event
 
 from app.db.models.price import PriceHistory
 from app.db.schemas.price import PriceCreate
 import numpy as np
+from app.core import logger
 
 
 async def add_prices_batch(
-        db: AsyncSession, prices: List[PriceCreate]
-) -> List[PriceHistory]:
+        db: AsyncSession,
+        prices: List[PriceCreate],
+) -> None:
+    if not prices:
+        return
     db_prices = [
         PriceHistory(
             item_id=price.item.id,
             price=price.price,
-            enchant_level=price.enchant_level,
+            enchant_level=str(price.enchant_level) if price.enchant_level is not None else None,
             currency=price.currency,
             source=price.source,
             timestamp=price.timestamp
@@ -25,11 +29,6 @@ async def add_prices_batch(
     ]
     db.add_all(db_prices)
     await db.commit()
-
-    for p in db_prices:
-        await db.refresh(p)
-
-    return db_prices
 
 
 def iqr_filter(prices):
@@ -50,13 +49,13 @@ async def get_prices_by_item(
         db: AsyncSession,
         item_id: int,
         limit: int = 100,
-        enchant_level: Optional[str] = None,
+        enchant_level: Optional[Union[int, str]] = None,
         currency: Optional[str] = None,
 ) -> List[PriceHistory]:
     stmt = select(PriceHistory).where(PriceHistory.item_id == item_id)
 
     if enchant_level is not None:
-        stmt = stmt.where(PriceHistory.enchant_level == enchant_level)
+        stmt = stmt.where(PriceHistory.enchant_level == str(enchant_level))
 
     if currency is not None:
         stmt = stmt.where(PriceHistory.currency == currency)
@@ -70,7 +69,7 @@ async def get_prices_by_item(
 async def get_latest_price(
         db: AsyncSession,
         item_id: int,
-        enchant_level: Optional[int] = None,
+        enchant_level: Optional[Union[int, str]] = None,
         currency: Optional[str] = None,
 ) -> Optional[PriceHistory]:
     prices = await get_prices_by_item(
@@ -93,7 +92,7 @@ async def get_latest_prices_for_classification(
             .where(
                 PriceHistory.item_id == item_id,
                 PriceHistory.currency == currency,
-                PriceHistory.enchant_level == mod
+                PriceHistory.enchant_level == str(mod)
             )
             .order_by(desc(PriceHistory.timestamp))
             .limit(per_mod_limit)

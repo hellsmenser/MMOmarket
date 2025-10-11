@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import ForeignKey, BigInteger, Integer, Text, DateTime, func, Index
+from sqlalchemy import ForeignKey, BigInteger, Integer, Text, DateTime, func, Index, Identity
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -11,7 +11,7 @@ class PriceHistory(Base):
         Index("ix_price_history_item_ts", "item_id", "timestamp"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), index=True)
 
     price: Mapped[int] = mapped_column(BigInteger)
