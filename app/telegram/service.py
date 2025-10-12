@@ -46,7 +46,7 @@ async def fetch_and_store_messages():
         total_saved = 0
         last_processed_msg_id: int | None = None
 
-        async def flush_prices(session: AsyncSession, max_read_id: int):
+        async def flush_prices(session: AsyncSession):
             nonlocal total_saved
 
             if not parsed_batch:
@@ -56,7 +56,7 @@ async def fetch_and_store_messages():
             await classify_prices(session, parsed_batch)
             logger.info("Adding into Db...")
             await add_prices_batch(session, parsed_batch)
-            await client.send_read_acknowledge(entity, max_id=max_read_id)
+            await client.send_read_acknowledge(entity, max_id=last_processed_msg_id)
 
             total_saved += len(parsed_batch)
             logger.info(f"✅ Saved {total_saved}.")
@@ -88,12 +88,12 @@ async def fetch_and_store_messages():
                         logger.warning(f"❌ Unknown item: {parsed['item_name']}")
                         continue
                     price_obj = PriceCreate(item=item, **parsed, timestamp=msg.date)
-                    parsed_batch.append(price_obj)
                     last_processed_msg_id = msg.id
+                    parsed_batch.append(price_obj)
 
                 # Flush if batch size reached or all fetched
                 if parsed_batch and (len(parsed_batch) >= PARTIAL_SAVE_SIZE or fetched >= unread_count):
-                    await flush_prices(session, last_processed_msg_id)
+                    await flush_prices(session)
 
             redis = await get_redis_client()
             await clear_cache(redis)
