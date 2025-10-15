@@ -95,6 +95,7 @@ async def fetch_and_store_messages():
                 if parsed_batch and (len(parsed_batch) >= PARTIAL_SAVE_SIZE or fetched >= unread_count):
                     await flush_prices(session)
 
+            await client.send_read_acknowledge(entity, max_id=batch_msgs[-1].id if batch_msgs else None)
             redis = await get_redis_client()
             await clear_cache(redis)
             await get_top_active_items(session)
