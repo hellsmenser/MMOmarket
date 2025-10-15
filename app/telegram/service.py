@@ -95,7 +95,6 @@ async def fetch_and_store_messages():
                         logger.warning(f"❌ Unknown item: {parsed['item_name']}")
                         continue
                     price_obj = PriceCreate(item=item, **parsed, timestamp=msg.date)
-                    last_processed_msg_id = msg.id
                     parsed_batch.append(price_obj)
 
                 # Flush if batch size reached or all fetched
