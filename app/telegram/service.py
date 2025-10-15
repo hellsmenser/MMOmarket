@@ -56,7 +56,11 @@ async def fetch_and_store_messages():
             await classify_prices(session, parsed_batch)
             logger.info("Adding into Db...")
             await add_prices_batch(session, parsed_batch)
-            await client.send_read_acknowledge(entity, max_id=last_processed_msg_id)
+            if last_processed_msg_id:
+                try:
+                    await client.send_read_acknowledge(entity, max_id=last_processed_msg_id)
+                except Exception as e:
+                    logger.warning(f"Read ack (flush) failed: {e}")
 
             total_saved += len(parsed_batch)
             logger.info(f"✅ Saved {total_saved}.")
@@ -72,6 +76,9 @@ async def fetch_and_store_messages():
                     break
                 fetched += len(batch_msgs)
                 offset_id = min(msg.id for msg in batch_msgs)
+                batch_max_id = max(m.id for m in batch_msgs)
+                if not last_processed_msg_id or batch_max_id > last_processed_msg_id:
+                    last_processed_msg_id = batch_max_id
                 batch_msgs = sorted(batch_msgs, key=lambda m: m.id)
 
                 for msg in batch_msgs:
@@ -95,7 +102,12 @@ async def fetch_and_store_messages():
                 if parsed_batch and (len(parsed_batch) >= PARTIAL_SAVE_SIZE or fetched >= unread_count):
                     await flush_prices(session)
 
-            await client.send_read_acknowledge(entity, max_id=batch_msgs[-1].id if batch_msgs else None)
+            if last_processed_msg_id:
+                try:
+                    await client.send_read_acknowledge(entity, max_id=last_processed_msg_id)
+                except Exception as e:
+                    logger.warning(f"Final read ack failed: {e}")
+
             redis = await get_redis_client()
             await clear_cache(redis)
             await get_top_active_items(session)
