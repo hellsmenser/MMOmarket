@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud import item as crud
 from app.db.schemas.category import CategoryShort
-from app.db.schemas.item import ItemCreate, ItemUpdate, ItemOut, ItemActivity
+from app.db.schemas.item import ItemCreate, ItemUpdate, ItemOut, ItemActivity, ItemSearchOut
 from app.core.redis import redis_cache
 
 
@@ -43,6 +43,6 @@ async def get_top_active_items(db: AsyncSession, category_id: int | None = None)
     ]
 
 
-async def search_items(db: AsyncSession, query: str, page: int = 1, page_size: int = 20) -> list[ItemOut]:
+async def search_items(db: AsyncSession, query: str, page: int = 1, page_size: int = 20) -> ItemSearchOut:
     items = await crud.search_items_by_name(db, query, page, page_size)
-    return [ItemOut.model_validate(item) for item in items]
+    return items

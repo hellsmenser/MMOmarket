@@ -38,6 +38,12 @@ class ItemOut(BaseModel):
     class Config:
         from_attributes = True
 
+class ItemSearchOut(BaseModel):
+    Items: List[ItemOut]
+    Total: int
+
+    class Config:
+        from_attributes = True
 
 class ItemActivity(BaseModel):
     id: int

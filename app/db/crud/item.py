@@ -121,23 +121,28 @@ async def delete_item(
 
 
 async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page_size: int = 20):
+    from app.db.schemas.item import ItemOut, ItemSearchOut
     norm = _normalize_query(query)
     if not norm:
-        return []
+        return ItemSearchOut(Items=[], Total=0)
     tokens = _split_tokens(norm)
     if not tokens:
-        return []
+        return ItemSearchOut(Items=[], Total=0)
 
     offset = (page - 1) * page_size
     fts_parts = _fts_tokens(tokens)
 
     results_ordered = []
     seen_ids = set()
+    total_count = 0
 
     if fts_parts:
         tsquery_str = " & ".join(fts_parts)
         tsquery = func.to_tsquery('russian', tsquery_str)
         tsv = Item.search_vector
+        count_stmt = select(func.count(Item.id)).where(tsv.op('@@')(tsquery))
+        count_res = await db.execute(count_stmt)
+        total_count = count_res.scalar() or 0
         fts_stmt = (
             select(Item)
             .options(selectinload(Item.category))
@@ -158,6 +163,9 @@ async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page
     if need_fallback:
         prefix = last_token
         ilike_pattern = f"{prefix}%"
+        count_stmt = select(func.count(Item.id)).where(Item.name.ilike(ilike_pattern))
+        count_res = await db.execute(count_stmt)
+        total_count = count_res.scalar() or 0
         ilike_stmt = (
             select(Item)
             .options(selectinload(Item.category))
@@ -171,7 +179,8 @@ async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page
                 results_ordered.append(it)
                 seen_ids.add(it.id)
 
-    return results_ordered[:page_size]
+    items_out = [ItemOut.model_validate(it) for it in results_ordered]
+    return ItemSearchOut(Items=items_out, Total=total_count)
 
 
 async def get_top_active_items(session: AsyncSession, days: int = 7, limit: int = 15,

@@ -4,10 +4,9 @@ import os
 from datetime import datetime
 
 LOGS_DIR = "logs"
-_CONFIGURED = False  # добавлено
+_CONFIGURED = False
 
 def get_logger(name: str | None = None):
-    # Используй в модулях: logger = get_logger(__name__)
     return logging.getLogger(name)
 
 def setup_logging():

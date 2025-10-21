@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.core.db import get_async_session
-from app.db.schemas.item import ItemCreate, ItemOut, ItemUpdate, ItemActivity
+from app.db.schemas.item import ItemCreate, ItemOut, ItemUpdate, ItemActivity, ItemSearchOut
 from app.services import items as service
 from app.config import get_x_secret_key
 
@@ -31,7 +31,7 @@ async def list_items(
     return await service.get_items(db, page=page, page_size=page_size)
 
 
-@router.get("/search", response_model=List[ItemOut])
+@router.get("/search", response_model=ItemSearchOut)
 async def search_items(
         query: str = Query(..., min_length=1),
         db: AsyncSession = Depends(get_async_session),
