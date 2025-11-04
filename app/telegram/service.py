@@ -10,7 +10,7 @@ from app.telegram.classifier import classify_from_history
 from app.telegram.client import client, start_client, close_client
 from app.telegram.parser import parse_price_message
 from app.db.crud.item import get_item_by_name
-from app.db.crud.price import add_prices_batch, get_latest_prices_for_classification
+from app.db.crud.price import add_prices_batch, get_latest_prices_for_classification, refresh_daily_price_stats
 from app.core.db import get_async_session
 from app.services.prices import get_coin_price
 from app.core.redis import get_redis_client, clear_cache
@@ -109,6 +109,12 @@ async def fetch_and_store_messages():
 
             redis = await get_redis_client()
             await clear_cache(redis)
+            if total_saved > 0:
+                try:
+                    await refresh_daily_price_stats(session, concurrently=True)
+                    logger.info("Materialized view daily_price_stats refreshed.")
+                except Exception as e:
+                    logger.error(f"Failed to refresh daily_price_stats: {e}")
             await get_top_active_items(session)
             break
 

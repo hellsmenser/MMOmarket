@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta
-
+from datetime import timedelta, date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
@@ -7,10 +6,10 @@ import re
 
 from sqlalchemy.orm import selectinload
 
-from app.db.models import PriceHistory, Category
+from app.db.models import Category
 from app.db.models.item import Item
 from app.db.schemas.item import ItemCreate, ItemUpdate
-from app.db.crud.utilits import get_quartiled_query, get_iqr_query
+from app.db.models.price import DailyPriceStats
 
 MIN_FTS_TOKEN_LEN = 3
 
@@ -185,50 +184,8 @@ async def search_items_by_name(db: AsyncSession, query: str, page: int = 1, page
 
 async def get_top_active_items(session: AsyncSession, days: int = 7, limit: int = 15,
                                category_id: Optional[int] = None):
-    since = datetime.utcnow() - timedelta(days=days)
-    PH = PriceHistory
-
-    base_query = select(
-        PH.id,
-        PH.item_id,
-        PH.price,
-        PH.currency,
-        PH.timestamp
-    ).where(PH.timestamp >= since)
-
-    quartiled = get_quartiled_query(
-        base_query,
-        partition_by=[PH.item_id],
-        order_by=PH.price
-    ).cte("quartiled")
-
-    iqr = get_iqr_query(
-        quartiled,
-        q_label="quartile",
-        price_col="price"
-    ).add_columns(
-        quartiled.c.item_id
-    ).group_by(quartiled.c.item_id).cte("iqr")
-
-    filtered = (
-        select(
-            quartiled.c.id,
-            quartiled.c.item_id,
-            quartiled.c.price,
-            quartiled.c.currency,
-            quartiled.c.timestamp
-        )
-        .join(iqr, iqr.c.item_id == quartiled.c.item_id)
-        .where(
-            quartiled.c.price.between(
-                iqr.c.q1 - 1.5 * (iqr.c.q3 - iqr.c.q1),
-                iqr.c.q3 + 1.5 * (iqr.c.q3 - iqr.c.q1),
-            )
-        )
-        .cte("filtered_prices")
-    )
-
-    avg_price = func.avg(filtered.c.price).label("avg_price")
+    since_day = date.today() - timedelta(days=days)
+    DPS = DailyPriceStats
 
     stmt = (
         select(
@@ -236,17 +193,17 @@ async def get_top_active_items(session: AsyncSession, days: int = 7, limit: int 
             Item.name,
             Category.id,
             Category.name,
-            filtered.c.currency,
-            func.count(filtered.c.id).label("count"),
-            avg_price
+            DPS.currency,
+            func.sum(DPS.volume).label("count"),
+            func.avg(DPS.avg_price).label("avg_price")
         )
-        .join(filtered, filtered.c.item_id == Item.id)
+        .join(DPS, DPS.item_id == Item.id)
         .join(Category, Category.id == Item.category_id)
-        .group_by(Item.id, Category.id, filtered.c.currency)
-        .order_by(func.count(filtered.c.id).desc())
+        .where(DPS.day >= since_day)
+        .group_by(Item.id, Category.id, DPS.currency)
+        .order_by(func.sum(DPS.volume).desc())
         .limit(limit)
     )
-
     if category_id is not None:
         stmt = stmt.where(Item.category_id == category_id)
 

@@ -29,3 +29,16 @@ class PriceHistory(Base):
         back_populates="prices",
         lazy="joined"
     )
+
+
+class DailyPriceStats(Base):
+    __tablename__ = "daily_price_stats"
+    __table_args__ = {"extend_existing": True}
+
+    item_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    currency: Mapped[str] = mapped_column(Text, primary_key=True)
+    day: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    avg_price: Mapped[int] = mapped_column(BigInteger)
+    min_price: Mapped[int] = mapped_column(BigInteger)
+    max_price: Mapped[int] = mapped_column(BigInteger)
+    volume: Mapped[int] = mapped_column(Integer)
