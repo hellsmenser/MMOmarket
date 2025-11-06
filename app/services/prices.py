@@ -79,7 +79,7 @@ async def get_coin_price(
     if to_date:
         try:
             dt_to = datetime.fromisoformat(to_date)
-        except ValueError:
+        except:
             dt_to = None
     price = await crud.get_coin_price(db, dt_to, aggregate)
     if not price:
