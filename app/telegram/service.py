@@ -111,7 +111,7 @@ async def fetch_and_store_messages():
             await clear_cache(redis)
             if total_saved > 0:
                 try:
-                    await refresh_daily_price_stats(session, concurrently=True)
+                    await refresh_daily_price_stats(session, concurrently=False)
                     logger.info("Materialized view daily_price_stats refreshed.")
                 except Exception as e:
                     logger.error(f"Failed to refresh daily_price_stats: {e}")
