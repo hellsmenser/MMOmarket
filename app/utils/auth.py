@@ -5,6 +5,8 @@ from app.config import security, config
 
 
 async def auth_or_403(request: Request, response: Response):
+    if request.method == "OPTIONS":
+        return None
     fn = security.access_token_required
     try:
         if inspect.iscoroutinefunction(fn):
