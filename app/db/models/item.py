@@ -26,7 +26,7 @@ class Item(Base):
     prices: Mapped[list["PriceHistory"]] = relationship(
         back_populates="item",
         cascade="all, delete-orphan",
-        lazy="selectin"
+        lazy="noload"
     )
     category: Mapped["Category"] = relationship(
         back_populates="items",
