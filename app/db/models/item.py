@@ -13,6 +13,7 @@ class Item(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    oridgin_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, unique=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
     tolerance: Mapped[float | None] = mapped_column(default=0.1)

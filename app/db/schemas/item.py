@@ -20,6 +20,7 @@ class ItemUpdate(BaseModel):
 
 class ItemOut(BaseModel):
     id: int
+    origin_id: Optional[int] = Field(default=None, example=12345)
     name: str
     modifications: list[int] = Field(default_factory=list)
     category: CategoryShort
@@ -47,6 +48,7 @@ class ItemSearchOut(BaseModel):
 
 class ItemActivity(BaseModel):
     id: int
+    origin_id: Optional[int] = Field(default=None, example=12345)
     name: str
     category: CategoryShort
     price: int = Field(default=None, example=3600000)

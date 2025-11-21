@@ -7,6 +7,13 @@ from app.db.schemas.price import PriceHistory
 from app.core.redis import redis_cache
 
 
+@redis_cache(ttl=7200, is_list=True)
+async def get_coin_price_map_cached(db: AsyncSession, start_day: date, end_day: date, aggregate: str = "avg"):
+    raw_map = await crud.get_coin_price_map(db, start_day, end_day, aggregate)
+    coin_map = {dt.date() if isinstance(dt, datetime) else dt: price for dt, price in raw_map.items()}
+    return coin_map
+
+
 @redis_cache(ttl=7200, model=PriceHistory, is_list=True)
 async def get_item_price_history(
     db: AsyncSession,
@@ -25,7 +32,7 @@ async def get_item_price_history(
     start_day = min_day if isinstance(min_day, date) and not isinstance(min_day, datetime) else min_day.date()
     end_day = max_day if isinstance(max_day, date) and not isinstance(max_day, datetime) else max_day.date()
 
-    coin_map = await crud.get_coin_price_map(db, start_day, end_day, aggregate="avg")
+    coin_map = await get_coin_price_map_cached(db, start_day, end_day, aggregate="avg")
 
     result: List[PriceHistory] = []
     for row in rows:
