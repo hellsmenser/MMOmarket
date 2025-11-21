@@ -10,7 +10,7 @@ from app.core.redis import redis_cache
 @redis_cache(ttl=7200, is_list=True)
 async def get_coin_price_map_cached(db: AsyncSession, start_day: date, end_day: date, aggregate: str = "avg"):
     raw_map = await crud.get_coin_price_map(db, start_day, end_day, aggregate)
-    coin_map = {dt.date() if isinstance(dt, datetime) else dt: price for dt, price in raw_map.items()}
+    coin_map = { (dt.date() if isinstance(dt, datetime) else dt).isoformat(): price for dt, price in raw_map.items() }
     return coin_map
 
 
@@ -40,7 +40,7 @@ async def get_item_price_history(
         if isinstance(ts, date) and not isinstance(ts, datetime):
             ts = datetime.combine(ts, time.min)
         coin_price = None
-        day_key = ts.date()
+        day_key = ts.date().isoformat()
         if day_key in coin_map:
             coin_price = coin_map[day_key]
         out = PriceHistory(
