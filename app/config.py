@@ -85,6 +85,7 @@ def get_authx() -> AuthX:
     cfg.JWT_COOKIE_SAMESITE = "none"
     cfg.JWT_COOKIE_SECURE = True
     cfg.JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=3)
+    cfg.JWT_COOKIE_CSRF_PROTECT = False
     return AuthX(cfg)
 
 

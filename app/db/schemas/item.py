@@ -10,6 +10,7 @@ class ItemBase(BaseModel):
 
 class ItemCreate(ItemBase):
     category_id: Optional[int] = Field(default=None, example=1)
+    origin_id: Optional[int] = Field(default=None, example=12345)
 
 
 class ItemUpdate(BaseModel):

@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import security, config
 from app.core.db import get_async_session
+from app.core import logger
 from app.db.crud.user import get_user_by_id
 
+logger = logger.get_logger(__name__)
 
 async def auth_or_403(
     request: Request,
@@ -69,7 +71,8 @@ async def auth_or_403(
                 detail="Not authenticated",
             )
         raise
-    except Exception:
+    except Exception as e:
+        logger.warn(f"Unexpected error in auth_or_403: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authenticated",
